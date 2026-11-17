@@ -25,6 +25,7 @@ import {
   FileSpreadsheet,
 } from 'lucide-react';
 import { ExcelImportModal, ColumnDefinition } from '@/components/common/ExcelImportModal';
+import { TablePagination, usePagination } from '@/components/common/TablePagination';
 
 export const UsersPage: React.FC = () => {
   const [users, setUsers] = useState<any[]>([]);
@@ -158,6 +159,8 @@ export const UsersPage: React.FC = () => {
     );
   });
 
+  const userPagination = usePagination(filteredUsers, 10);
+
   return (
     <div className="max-w-7xl mx-auto space-y-6 animate-fade-in">
       {/* Header */}
@@ -231,7 +234,7 @@ export const UsersPage: React.FC = () => {
                     </td>
                   </tr>
                 ) : (
-                  filteredUsers.map((u) => (
+                  userPagination.paginatedItems.map((u) => (
                     <tr key={u.id} className="hover:bg-slate-50/70 transition-colors">
                       <td className="py-3.5 px-4">
                         <div className="font-semibold text-ink font-poppins">
@@ -282,6 +285,7 @@ export const UsersPage: React.FC = () => {
               </tbody>
             </table>
           </div>
+          <TablePagination {...userPagination} />
         </CardContent>
       </Card>
 

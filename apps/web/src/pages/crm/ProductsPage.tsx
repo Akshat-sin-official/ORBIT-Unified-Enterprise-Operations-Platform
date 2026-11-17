@@ -28,6 +28,7 @@ import {
   FileSpreadsheet,
 } from 'lucide-react';
 import { ExcelImportModal, ColumnDefinition } from '@/components/common/ExcelImportModal';
+import { TablePagination, usePagination } from '@/components/common/TablePagination';
 
 interface Category {
   id: string;
@@ -92,6 +93,7 @@ export const ProductsPage: React.FC = () => {
   const [registerSubmitting, setRegisterSubmitting] = useState(false);
   const [registrationSuccess, setRegistrationSuccess] = useState<any>(null);
   const [isExcelImportOpen, setIsExcelImportOpen] = useState(false);
+  const pagination = usePagination(products, 10);
 
   const productImportColumns: ColumnDefinition[] = [
     { key: 'sku', label: 'SKU Code', required: true, example: 'ORBIT-TAB-12' },
@@ -347,56 +349,62 @@ export const ProductsPage: React.FC = () => {
           <p className="text-xs text-ink-muted mt-1">Get started by creating your first product model.</p>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {products.map((p) => (
-            <Card
-              key={p.id}
-              className="bg-white border-border/70 hover:border-border transition-all duration-200 shadow-sm flex flex-col justify-between"
-            >
-              <CardContent className="p-5 space-y-3">
-                <div className="flex items-start justify-between gap-2">
-                  <span className="font-mono text-xs px-2 py-0.5 rounded bg-zinc-100 border border-zinc-200 font-semibold text-ink-soft">
-                    {p.sku}
-                  </span>
-                  {p.category && (
-                    <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700 border-blue-200">
-                      {p.category.name}
-                    </Badge>
-                  )}
-                </div>
-
-                <div>
-                  <h3 className="font-bold text-base font-poppins text-ink leading-snug">
-                    {p.name}
-                  </h3>
-                  {p.modelNumber && (
-                    <p className="text-xs text-ink-muted font-mono mt-0.5">
-                      Model: {p.modelNumber}
-                    </p>
-                  )}
-                </div>
-
-                <p className="text-xs text-ink-muted line-clamp-2 leading-relaxed">
-                  {p.description || 'Standard enterprise hardware specification.'}
-                </p>
-
-                <div className="pt-3 border-t border-border/60 grid grid-cols-2 gap-2 text-xs">
-                  <div>
-                    <span className="text-[11px] text-ink-muted block">OEM Warranty</span>
-                    <span className="font-semibold text-ink font-mono">
-                      {p.defaultWarrantyMonths} Months
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {pagination.paginatedItems.map((p) => (
+              <Card
+                key={p.id}
+                className="bg-white border-border/70 hover:border-border transition-all duration-200 shadow-sm flex flex-col justify-between"
+              >
+                <CardContent className="p-5 space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="font-mono text-xs px-2 py-0.5 rounded bg-zinc-100 border border-zinc-200 font-semibold text-ink-soft">
+                      {p.sku}
                     </span>
+                    {p.category && (
+                      <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700 border-blue-200">
+                        {p.category.name}
+                      </Badge>
+                    )}
                   </div>
+
                   <div>
-                    <span className="text-[11px] text-ink-muted block">Registered Units</span>
-                    <span className="font-semibold text-emerald-700 font-mono">
-                      {p._count?.registrations || 0} Assets
-                    </span>
+                    <h3 className="font-bold text-base font-poppins text-ink leading-snug">
+                      {p.name}
+                    </h3>
+                    {p.modelNumber && (
+                      <p className="text-xs text-ink-muted font-mono mt-0.5">
+                        Model: {p.modelNumber}
+                      </p>
+                    )}
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+
+                  <p className="text-xs text-ink-muted line-clamp-2 leading-relaxed">
+                    {p.description || 'Standard enterprise hardware specification.'}
+                  </p>
+
+                  <div className="pt-3 border-t border-border/60 grid grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <span className="text-[11px] text-ink-muted block">OEM Warranty</span>
+                      <span className="font-semibold text-ink font-mono">
+                        {p.defaultWarrantyMonths} Months
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[11px] text-ink-muted block">Registered Units</span>
+                      <span className="font-semibold text-emerald-700 font-mono">
+                        {p._count?.registrations || 0} Assets
+                      </span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          <Card className="bg-white border-border/70 shadow-sm overflow-hidden">
+            <TablePagination {...pagination} />
+          </Card>
         </div>
       )}
 

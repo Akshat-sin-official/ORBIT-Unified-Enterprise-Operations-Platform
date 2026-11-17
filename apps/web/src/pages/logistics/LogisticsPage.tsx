@@ -32,6 +32,7 @@ import {
   Boxes,
   ArrowRight,
 } from 'lucide-react';
+import { TablePagination, usePagination } from '@/components/common/TablePagination';
 
 interface Shipment {
   id: string;
@@ -302,6 +303,8 @@ export const LogisticsPage: React.FC = () => {
     return true;
   });
 
+  const shipmentPagination = usePagination(filteredShipments, 10);
+
   return (
     <div className="p-8 space-y-6 max-w-[1600px] mx-auto">
       {/* Top Banner & Header */}
@@ -537,7 +540,7 @@ export const LogisticsPage: React.FC = () => {
                       </td>
                     </tr>
                   ) : (
-                    filteredShipments.map((s) => (
+                    shipmentPagination.paginatedItems.map((s) => (
                       <tr key={s.id} className="hover:bg-zinc-50/60 transition-colors">
                         <td className="py-3 px-4">
                           <div className="flex flex-col">
@@ -605,6 +608,7 @@ export const LogisticsPage: React.FC = () => {
                 </tbody>
               </table>
             </div>
+            <TablePagination {...shipmentPagination} />
           </div>
         </div>
       )}

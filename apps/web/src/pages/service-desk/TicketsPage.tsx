@@ -35,6 +35,7 @@ import {
   CheckSquare,
 } from 'lucide-react';
 import { BulkActionBar, BulkActionOption } from '@/components/common/BulkActionBar';
+import { TablePagination, usePagination } from '@/components/common/TablePagination';
 import { toast } from 'sonner';
 
 interface TicketItem {
@@ -99,12 +100,13 @@ export const TicketsPage: React.FC = () => {
   // Bulk operations state
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkLoading, setBulkLoading] = useState(false);
+  const pagination = usePagination(tickets, 10);
 
   const toggleSelectAll = () => {
-    if (selectedIds.length === tickets.length) {
+    if (selectedIds.length === pagination.paginatedItems.length && pagination.paginatedItems.length > 0) {
       setSelectedIds([]);
     } else {
-      setSelectedIds(tickets.map((t) => t.id));
+      setSelectedIds(pagination.paginatedItems.map((t) => t.id));
     }
   };
 
@@ -481,7 +483,7 @@ export const TicketsPage: React.FC = () => {
                   <input
                     type="checkbox"
                     aria-label="Select all tickets"
-                    checked={tickets.length > 0 && selectedIds.length === tickets.length}
+                    checked={pagination.paginatedItems.length > 0 && selectedIds.length === pagination.paginatedItems.length}
                     onChange={toggleSelectAll}
                     className="rounded border-zinc-300 text-primary focus:ring-primary w-4 h-4 cursor-pointer"
                   />
@@ -511,7 +513,7 @@ export const TicketsPage: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                tickets.map((t) => (
+                pagination.paginatedItems.map((t) => (
                   <tr
                     key={t.id}
                     onClick={() => navigate(`/operations/tickets/${t.id}`)}
@@ -608,6 +610,7 @@ export const TicketsPage: React.FC = () => {
             </tbody>
           </table>
         </div>
+        <TablePagination {...pagination} />
       </Card>
 
       {/* Raise Support Ticket Dialog */}

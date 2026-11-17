@@ -36,6 +36,7 @@ import {
   FileSpreadsheet,
 } from 'lucide-react';
 import { ExcelImportModal, ColumnDefinition } from '@/components/common/ExcelImportModal';
+import { TablePagination, usePagination } from '@/components/common/TablePagination';
 
 interface Warehouse {
   id: string;
@@ -266,6 +267,10 @@ export const InventoryPage: React.FC = () => {
     }
     return true;
   });
+
+  const balancePagination = usePagination(filteredBalances, 10);
+  const partPagination = usePagination(filteredParts, 10);
+  const movementPagination = usePagination(movements, 10);
 
   // Handle Goods Receipt (GRN)
   const [isExcelImportOpen, setIsExcelImportOpen] = useState(false);
@@ -728,7 +733,7 @@ export const InventoryPage: React.FC = () => {
                       </td>
                     </tr>
                   ) : (
-                    filteredBalances.map((b) => (
+                    balancePagination.paginatedItems.map((b) => (
                       <tr key={b.id} className="hover:bg-zinc-50/60 transition-colors">
                         <td className="py-3 px-4">
                           <div className="flex flex-col">
@@ -811,6 +816,7 @@ export const InventoryPage: React.FC = () => {
                 </tbody>
               </table>
             </div>
+            <TablePagination {...balancePagination} />
           </div>
         </div>
       )}
@@ -840,7 +846,7 @@ export const InventoryPage: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredParts.map((p) => (
+            {partPagination.paginatedItems.map((p) => (
               <Card key={p.id} className="bg-white border-border/70 shadow-xs hover:border-border transition-all flex flex-col justify-between">
                 <CardContent className="p-4 space-y-3">
                   <div className="flex items-start justify-between gap-2">
@@ -893,6 +899,10 @@ export const InventoryPage: React.FC = () => {
               </Card>
             ))}
           </div>
+
+          <Card className="bg-white border-border/70 shadow-sm overflow-hidden">
+            <TablePagination {...partPagination} />
+          </Card>
         </div>
       )}
 
@@ -923,7 +933,7 @@ export const InventoryPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/60">
-                {movements.map((m) => (
+                {movementPagination.paginatedItems.map((m) => (
                   <tr key={m.id} className="hover:bg-zinc-50/60 transition-colors">
                     <td className="py-3 px-4 font-mono font-semibold text-ink text-[11px]">
                       {m.movementNumber}
@@ -981,6 +991,7 @@ export const InventoryPage: React.FC = () => {
               </tbody>
             </table>
           </div>
+          <TablePagination {...movementPagination} />
         </div>
       )}
 

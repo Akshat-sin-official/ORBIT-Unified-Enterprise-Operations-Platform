@@ -4,6 +4,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { History, Loader2, RefreshCw } from 'lucide-react';
+import { TablePagination } from '@/components/common/TablePagination';
 import { toast } from 'sonner';
 
 export const AuditLogsPage: React.FC = () => {
@@ -16,7 +17,7 @@ export const AuditLogsPage: React.FC = () => {
   const fetchLogs = async (p = 1) => {
     try {
       setLoading(true);
-      const res = await api.get(`/identity/audit-logs?page=${p}&limit=25`);
+      const res = await api.get(`/identity/audit-logs?page=${p}&limit=10`);
       setLogs(res.data?.data || []);
       setTotalPages(res.data?.pagination?.totalPages || 1);
       setTotal(res.data?.pagination?.total || 0);
@@ -116,32 +117,14 @@ export const AuditLogsPage: React.FC = () => {
             </table>
           </div>
 
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="p-4 border-t border-border/60 flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">
-                Page {page} of {totalPages}
-              </span>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={page <= 1}
-                  onClick={() => fetchLogs(page - 1)}
-                >
-                  Previous
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={page >= totalPages}
-                  onClick={() => fetchLogs(page + 1)}
-                >
-                  Next
-                </Button>
-              </div>
-            </div>
-          )}
+          <TablePagination
+            currentPage={page}
+            totalPages={totalPages}
+            totalItems={total}
+            startIndex={total > 0 ? (page - 1) * 10 + 1 : 0}
+            endIndex={Math.min(page * 10, total)}
+            setCurrentPage={(p) => fetchLogs(p)}
+          />
         </CardContent>
       </Card>
     </div>

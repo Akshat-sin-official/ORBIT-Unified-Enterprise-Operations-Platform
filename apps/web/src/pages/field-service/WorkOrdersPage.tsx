@@ -37,6 +37,7 @@ import {
   CheckSquare,
 } from 'lucide-react';
 import { BulkActionBar } from '@/components/common/BulkActionBar';
+import { TablePagination, usePagination } from '@/components/common/TablePagination';
 import { toast } from 'sonner';
 
 interface WorkOrderItem {
@@ -113,12 +114,13 @@ export const WorkOrdersPage: React.FC = () => {
   // Bulk operations state
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkLoading, setBulkLoading] = useState(false);
+  const pagination = usePagination(workOrders, 10);
 
   const toggleSelectAll = () => {
-    if (selectedIds.length === workOrders.length) {
+    if (selectedIds.length === pagination.paginatedItems.length && pagination.paginatedItems.length > 0) {
       setSelectedIds([]);
     } else {
-      setSelectedIds(workOrders.map((w) => w.id));
+      setSelectedIds(pagination.paginatedItems.map((w) => w.id));
     }
   };
 
@@ -474,7 +476,7 @@ export const WorkOrdersPage: React.FC = () => {
                   <input
                     type="checkbox"
                     aria-label="Select all work orders"
-                    checked={workOrders.length > 0 && selectedIds.length === workOrders.length}
+                    checked={pagination.paginatedItems.length > 0 && selectedIds.length === pagination.paginatedItems.length}
                     onChange={toggleSelectAll}
                     className="rounded border-zinc-300 text-primary focus:ring-primary w-4 h-4 cursor-pointer"
                   />
@@ -504,7 +506,7 @@ export const WorkOrdersPage: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                workOrders.map((wo) => (
+                pagination.paginatedItems.map((wo) => (
                   <tr
                     key={wo.id}
                     onClick={() => navigate(`/operations/work-orders/${wo.id}`)}
@@ -598,6 +600,7 @@ export const WorkOrdersPage: React.FC = () => {
             </tbody>
           </table>
         </div>
+        <TablePagination {...pagination} />
       </Card>
 
       {/* Create Work Order Modal */}

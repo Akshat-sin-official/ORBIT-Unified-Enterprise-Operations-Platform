@@ -33,6 +33,7 @@ import {
   FileSpreadsheet,
 } from 'lucide-react';
 import { ExcelImportModal, ColumnDefinition } from '@/components/common/ExcelImportModal';
+import { TablePagination, usePagination } from '@/components/common/TablePagination';
 
 interface CustomerAddress {
   id: string;
@@ -114,6 +115,7 @@ export const CustomersPage: React.FC = () => {
   // New Customer Dialog
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [isExcelImportOpen, setIsExcelImportOpen] = useState(false);
+  const pagination = usePagination(customers, 10);
   const [createForm, setCreateForm] = useState({
     name: '',
     email: '',
@@ -434,7 +436,7 @@ export const CustomersPage: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                customers.map((c) => (
+                pagination.paginatedItems.map((c) => (
                   <tr key={c.id} className="hover:bg-[#FAF9F6]/80 transition-colors">
                     <td className="py-3.5 px-4 font-mono font-medium text-ink-soft">
                       <span className="px-2 py-0.5 rounded bg-zinc-100 border border-zinc-200">
@@ -506,6 +508,7 @@ export const CustomersPage: React.FC = () => {
             </tbody>
           </table>
         </div>
+        <TablePagination {...pagination} />
       </Card>
 
       {/* Customer 360° Profile Dialog */}

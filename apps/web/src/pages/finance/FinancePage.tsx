@@ -30,6 +30,7 @@ import {
   User,
   Tag,
 } from 'lucide-react';
+import { TablePagination, usePagination } from '@/components/common/TablePagination';
 
 interface InvoiceItem {
   id: string;
@@ -276,6 +277,8 @@ export const FinancePage: React.FC = () => {
     return true;
   });
 
+  const invoicePagination = usePagination(filteredInvoices, 10);
+
   return (
     <div className="p-8 space-y-6 max-w-[1600px] mx-auto">
       {/* Top Banner & Header */}
@@ -490,7 +493,7 @@ export const FinancePage: React.FC = () => {
                     </td>
                   </tr>
                 ) : (
-                  filteredInvoices.map((inv) => (
+                  invoicePagination.paginatedItems.map((inv) => (
                     <tr key={inv.id} className="hover:bg-zinc-50/60 transition-colors">
                       <td className="py-3 px-4 font-mono font-bold text-ink text-[12px]">
                         {inv.invoiceNumber}
@@ -550,6 +553,7 @@ export const FinancePage: React.FC = () => {
               </tbody>
             </table>
           </div>
+          <TablePagination {...invoicePagination} />
         </div>
       </div>
 

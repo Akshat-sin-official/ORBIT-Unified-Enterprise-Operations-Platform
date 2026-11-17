@@ -58,13 +58,15 @@ const DashboardStatCard: React.FC<StatCardProps> = ({
   >
     <CardContent className="p-4 flex items-center justify-between">
       <div className="space-y-1 min-w-0">
-        <p className="text-[11px] font-bold font-poppins text-muted-foreground uppercase tracking-wider truncate">
+        <p className="text-[10px] font-bold font-poppins text-muted-foreground uppercase tracking-widest truncate">
           {title}
         </p>
-        <p className="text-2xl font-extrabold font-poppins text-ink tracking-tight">{value}</p>
-        {subtitle && <p className="text-[11px] text-muted-foreground truncate">{subtitle}</p>}
+        <p className="text-3xl sm:text-[32px] font-black font-poppins text-ink tracking-tight leading-none my-1">
+          {value}
+        </p>
+        {subtitle && <p className="text-[11px] font-medium font-sans text-muted-foreground truncate">{subtitle}</p>}
       </div>
-      <div className={`w-10 h-10 rounded-xl ${bgClass} ${colorClass} flex items-center justify-center shrink-0`}>
+      <div className={`w-11 h-11 rounded-xl ${bgClass} ${colorClass} flex items-center justify-center shrink-0 shadow-2xs`}>
         <Icon className="w-5 h-5" />
       </div>
     </CardContent>
@@ -185,24 +187,33 @@ export const DashboardPage: React.FC = () => {
   return (
     <div className="max-w-7xl mx-auto space-y-6 animate-fade-in">
       {/* Dynamic Persona Welcome Header */}
-      <div className="bg-white rounded-2xl border border-border/70 p-6 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <Badge variant="outline" className="font-mono text-[10.5px] bg-primary/5 text-primary border-primary/20">
+      <div className="bg-white rounded-2xl border border-border/70 p-6 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-5 relative overflow-hidden">
+        <div className="space-y-1.5 relative z-10">
+          <div className="flex items-center gap-2.5">
+            <div className="h-7 w-auto bg-[#FAF9F6] border border-border/70 px-2 py-0.5 rounded-lg flex items-center justify-center shrink-0 shadow-2xs">
+              <img
+                src="/orbit-logo.png"
+                alt="ORBIT"
+                className="h-5 w-auto object-contain mix-blend-multiply"
+              />
+            </div>
+            <Badge variant="outline" className="font-mono text-[10px] font-bold bg-primary/5 text-primary border-primary/20 py-0 px-2">
               Role: {user?.roles?.[0] || 'Operator'}
             </Badge>
             <span className="text-[11px] text-muted-foreground font-mono">
               {user?.organizationName} • RBAC Verified
             </span>
           </div>
-          <h1 className="text-xl sm:text-2xl font-extrabold font-poppins text-ink tracking-tight">
+
+          <h1 className="text-2xl sm:text-3xl font-black font-poppins text-ink tracking-[-0.03em] leading-tight">
             {isTech && `Field Technician Console — Welcome, ${user?.firstName}`}
             {isSupport && `Service Desk Command — Welcome, ${user?.firstName}`}
             {isDispatcher && `Smart Dispatch Hub — Welcome, ${user?.firstName}`}
             {isWarehouse && `Warehouse & Hub Ledger — Welcome, ${user?.firstName}`}
             {isAdmin && `Executive Operations Command — Welcome, ${user?.firstName}`}
           </h1>
-          <p className="text-xs text-muted-foreground font-sans">
+
+          <p className="text-xs sm:text-[13px] text-muted-foreground font-sans leading-relaxed max-w-2xl font-normal">
             {isTech && 'View assigned field service calls, navigate customer addresses, and verify completion OTPs.'}
             {isSupport && 'Triage customer incidents, review SLA countdown clocks, and escalate critical issues.'}
             {isDispatcher && 'Coordinate field engineers, optimize travel zones, and monitor fleet transit.'}
@@ -211,14 +222,14 @@ export const DashboardPage: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0 relative z-10">
           <Button
             size="sm"
             onClick={() => navigate(isTech ? '/operations/work-orders' : isSupport ? '/operations/tickets' : '/management/analytics')}
-            className="text-xs font-semibold bg-primary text-white shadow-2xs"
+            className="text-xs font-poppins font-bold bg-primary hover:bg-primary/95 text-white shadow-2xs px-3.5 h-9 rounded-xl gap-1.5"
           >
             {isTech ? 'My Jobs' : isSupport ? 'Ticket Queue' : 'Analytics Digest'}
-            <ArrowRight className="w-3.5 h-3.5 ml-1" />
+            <ArrowRight className="w-3.5 h-3.5" />
           </Button>
         </div>
       </div>

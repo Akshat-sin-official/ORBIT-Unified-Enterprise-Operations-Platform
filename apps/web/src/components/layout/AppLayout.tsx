@@ -140,14 +140,18 @@ export const AppLayout: React.FC = () => {
       <aside className="w-64 border-r border-border/70 bg-[#FBFBFA] flex flex-col justify-between shrink-0">
         {/* Top Org Branding */}
         <div>
-          <div className="p-4 border-b border-border/60">
+          <div className="p-3.5 border-b border-border/70 bg-white">
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-primary/10 border border-primary/20 text-primary flex items-center justify-center shrink-0">
-                <Orbit className="w-5 h-5 stroke-[2.2]" />
+              <div className="h-9 w-auto bg-[#FAF9F6] border border-border/80 px-2 py-1 rounded-xl flex items-center justify-center shrink-0 shadow-2xs">
+                <img
+                  src="/orbit-logo.png"
+                  alt="ORBIT"
+                  className="h-6 w-auto object-contain mix-blend-multiply"
+                />
               </div>
               <div className="flex flex-col min-w-0">
-                <span className="font-extrabold font-poppins text-sm tracking-tight text-ink truncate">
-                  {user?.organizationName || 'ORBIT Platform'}
+                <span className="font-extrabold font-poppins text-xs tracking-tight text-ink truncate">
+                  {user?.organizationName || 'ORBIT Operations'}
                 </span>
                 <span className="text-[10px] font-mono text-muted-foreground truncate">
                   {user?.organizationSlug || 'tenant-active'}

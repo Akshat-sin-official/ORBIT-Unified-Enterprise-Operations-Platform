@@ -46,6 +46,7 @@ interface NavItem {
   to: string;
   icon: any;
   enabled: boolean;
+  permission?: string;
   tag?: string;
 }
 
@@ -77,6 +78,14 @@ export const AppLayout: React.FC = () => {
     navigate('/login');
   };
 
+  const hasPermission = (perm?: string) => {
+    if (!perm) return true;
+    if (!user) return false;
+    // Super Admin / Org Admin has all permissions
+    if (user.roles?.some((r) => r.toLowerCase().includes('admin'))) return true;
+    return user.permissions?.includes(perm) || false;
+  };
+
   const navGroups: NavGroup[] = [
     {
       title: 'Overview',
@@ -87,32 +96,40 @@ export const AppLayout: React.FC = () => {
     {
       title: 'Operations',
       items: [
-        { label: 'Customers', to: '/operations/customers', icon: Users, enabled: true },
-        { label: 'Products & Serials', to: '/operations/products', icon: Package, enabled: true },
-        { label: 'Warranty Check', to: '/operations/warranty-check', icon: ShieldCheck, enabled: true },
-        { label: 'Service Desk (Tickets)', to: '/operations/tickets', icon: Ticket, enabled: true },
-        { label: 'Work Orders', to: '/operations/work-orders', icon: Wrench, enabled: true },
+        { label: 'Customers', to: '/operations/customers', icon: Users, enabled: true, permission: 'customer.view' },
+        { label: 'Products & Serials', to: '/operations/products', icon: Package, enabled: true, permission: 'product.view' },
+        { label: 'Warranty Check', to: '/operations/warranty-check', icon: ShieldCheck, enabled: true, permission: 'warranty.view' },
+        { label: 'Service Desk (Tickets)', to: '/operations/tickets', icon: Ticket, enabled: true, permission: 'ticket.view' },
+        { label: 'Work Orders', to: '/operations/work-orders', icon: Wrench, enabled: true, permission: 'work_order.view' },
       ],
     },
     {
       title: 'Supply & Logistics',
       items: [
-        { label: 'Inventory & Warehouses', to: '/management/inventory', icon: Boxes, enabled: true },
-        { label: 'Shipments & Fleet', to: '/management/logistics', icon: Truck, enabled: true },
-        { label: 'Invoices & Billing', to: '/management/finance', icon: Receipt, enabled: true },
-        { label: 'Operational KPIs', to: '/management/analytics', icon: BarChart3, enabled: true },
+        { label: 'Inventory & Warehouses', to: '/management/inventory', icon: Boxes, enabled: true, permission: 'inventory.view' },
+        { label: 'Shipments & Fleet', to: '/management/logistics', icon: Truck, enabled: true, permission: 'shipment.view' },
+        { label: 'Invoices & Billing', to: '/management/finance', icon: Receipt, enabled: true, permission: 'invoice.view' },
+        { label: 'Operational KPIs', to: '/management/analytics', icon: BarChart3, enabled: true, permission: 'analytics.view' },
       ],
     },
     {
       title: 'Platform Settings',
       items: [
-        { label: 'Users & Team', to: '/settings/users', icon: UserCog, enabled: true },
-        { label: 'Roles & Matrix', to: '/settings/roles', icon: Shield, enabled: true },
-        { label: 'Organization Profile', to: '/settings/organization', icon: Building2, enabled: true },
-        { label: 'Audit Trails', to: '/settings/audit-logs', icon: History, enabled: true },
+        { label: 'Users & Team', to: '/settings/users', icon: UserCog, enabled: true, permission: 'user.view' },
+        { label: 'Roles & Matrix', to: '/settings/roles', icon: Shield, enabled: true, permission: 'role.view' },
+        { label: 'Organization Profile', to: '/settings/organization', icon: Building2, enabled: true, permission: 'organization.view' },
+        { label: 'Audit Trails', to: '/settings/audit-logs', icon: History, enabled: true, permission: 'audit.view' },
       ],
     },
   ];
+
+  // RBAC Gated Navigation
+  const filteredNavGroups = navGroups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => hasPermission(item.permission)),
+    }))
+    .filter((group) => group.items.length > 0);
 
   const userInitials =
     user ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase() : 'OR';
@@ -141,7 +158,7 @@ export const AppLayout: React.FC = () => {
 
           {/* Nav Items */}
           <div className="p-3 space-y-5 overflow-y-auto max-h-[calc(100vh-140px)]">
-            {navGroups.map((group) => (
+            {filteredNavGroups.map((group) => (
               <div key={group.title} className="space-y-1">
                 <div className="px-2.5 py-1 text-[10px] font-bold font-poppins text-muted-foreground uppercase tracking-wider">
                   {group.title}

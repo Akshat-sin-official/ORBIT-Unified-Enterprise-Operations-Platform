@@ -1,0 +1,41 @@
+{
+  "name": "orbit",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ORBIT — Enterprise Resource Operations Management Platform",
+  "scripts": {
+    "dev": "turbo run dev",
+    "dev:api": "pnpm --filter @orbit/api dev",
+    "dev:web": "pnpm --filter @orbit/web dev",
+    "build": "turbo run build",
+    "build:api": "pnpm --filter @orbit/api build",
+    "build:web": "pnpm --filter @orbit/web build",
+    "start:api": "pnpm --filter @orbit/api start:prod",
+    "lint": "turbo run lint",
+    "db:generate": "prisma generate --schema=prisma/schema.prisma",
+    "db:migrate": "prisma migrate dev --schema=prisma/schema.prisma",
+    "db:push": "prisma db push --schema=prisma/schema.prisma",
+    "db:seed": "npx tsx prisma/seed.ts",
+    "db:studio": "prisma studio --schema=prisma/schema.prisma"
+  },
+  "devDependencies": {
+    "@types/bcrypt": "^5.0.2",
+    "@types/node": "^20.11.0",
+    "bcrypt": "^5.1.1",
+    "prisma": "^5.10.0",
+    "ts-node": "^10.9.2",
+    "turbo": "^1.13.0",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.10.0"
+  },
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "packageManager": "pnpm@8.15.4"
+}

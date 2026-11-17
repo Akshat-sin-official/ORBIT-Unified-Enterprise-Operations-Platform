@@ -1,0 +1,1306 @@
+// ORBIT Platform — Prisma Schema (Milestone 1)
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ──────────────────────────────────────────────────────────────────
+
+enum OrganizationStatus {
+  ACTIVE
+  SUSPENDED
+  DEACTIVATED
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+// ─── Organizations ──────────────────────────────────────────────────────────
+
+model Organization {
+  id        String             @id @default(uuid()) @db.Uuid
+  name      String
+  slug      String             @unique
+  status    OrganizationStatus @default(ACTIVE)
+  timezone  String             @default("UTC")
+  createdAt DateTime           @default(now()) @map("created_at")
+  updatedAt DateTime           @updatedAt @map("updated_at")
+
+  users       User[]
+  roles       Role[]
+  departments Department[]
+  employees   Employee[]
+  auditLogs   AuditLog[]
+
+  // CRM Relations
+  customers            Customer[]
+  customerInteractions CustomerInteraction[]
+  productCategories    ProductCategory[]
+  products             Product[]
+  productSerialNumbers ProductSerialNumber[]
+  productRegistrations ProductRegistration[]
+  warranties           Warranty[]
+
+  // Service Desk Relations
+  slaPolicies          SlaPolicy[]
+  tickets              Ticket[]
+
+  // Field Service Relations
+  technicians          Technician[]
+  workOrders           WorkOrder[]
+
+  // Inventory & Warehouse Relations
+  warehouses           Warehouse[]
+  partCategories       PartCategory[]
+  parts                Part[]
+  stockBalances        StockBalance[]
+  stockMovements       StockMovement[]
+  purchaseOrders       PurchaseOrder[]
+  vehicles             Vehicle[]
+  shipments            Shipment[]
+  invoices             Invoice[]
+  payments             Payment[]
+  smtpConfig           SmtpConfig?
+  geminiApiKey         String?        @map("gemini_api_key")
+
+  @@index([status])
+  @@map("organizations")
+}
+
+// ─── Users ──────────────────────────────────────────────────────────────────
+
+model User {
+  id             String     @id @default(uuid()) @db.Uuid
+  organizationId String     @map("organization_id") @db.Uuid
+  email          String     @unique
+  phone          String?
+  passwordHash   String     @map("password_hash")
+  firstName      String     @map("first_name")
+  lastName       String     @map("last_name")
+  status         UserStatus @default(ACTIVE)
+  createdAt      DateTime   @default(now()) @map("created_at")
+  updatedAt      DateTime   @updatedAt @map("updated_at")
+
+  organization  Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userRoles     UserRole[]
+  employee      Employee?
+  refreshTokens RefreshToken[]
+  auditLogs     AuditLog[]     @relation("AuditActor")
+
+  // Service Desk Relations
+  assignedTickets      Ticket[]              @relation("TicketAssignee")
+  ticketComments       TicketComment[]
+  ticketStatusChanges  TicketStatusHistory[]
+
+  // Field Service Relations
+  technicianProfile    Technician?
+  assignedWorkOrders   WorkOrder[]           @relation("WorkOrderTechnician")
+  workOrderStatusChanges WorkOrderStatusHistory[]
+
+  // Inventory Relations
+  stockMovements       StockMovement[]
+
+  @@index([organizationId])
+  @@index([status])
+  @@map("users")
+}
+
+// ─── Roles ──────────────────────────────────────────────────────────────────
+
+model Role {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  name           String
+  description    String?
+  isSystemRole   Boolean  @default(false) @map("is_system_role")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userRoles       UserRole[]
+  rolePermissions RolePermission[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+  @@map("roles")
+}
+
+// ─── Permissions ────────────────────────────────────────────────────────────
+
+model Permission {
+  id          String @id @default(uuid()) @db.Uuid
+  code        String @unique
+  description String
+  module      String
+
+  rolePermissions RolePermission[]
+
+  @@index([module])
+  @@map("permissions")
+}
+
+// ─── User Roles (join) ──────────────────────────────────────────────────────
+
+model UserRole {
+  userId     String   @map("user_id") @db.Uuid
+  roleId     String   @map("role_id") @db.Uuid
+  assignedAt DateTime @default(now()) @map("assigned_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@index([roleId])
+  @@map("user_roles")
+}
+
+// ─── Role Permissions (join) ────────────────────────────────────────────────
+
+model RolePermission {
+  roleId       String @map("role_id") @db.Uuid
+  permissionId String @map("permission_id") @db.Uuid
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+// ─── Departments ────────────────────────────────────────────────────────────
+
+model Department {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  name           String
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  employees    Employee[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+  @@map("departments")
+}
+
+// ─── Employees ──────────────────────────────────────────────────────────────
+
+model Employee {
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String   @unique @map("user_id") @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  employeeCode   String   @map("employee_code")
+  departmentId   String?  @map("department_id") @db.Uuid
+  designation    String?
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  department   Department?   @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, employeeCode])
+  @@index([organizationId])
+  @@index([departmentId])
+  @@map("employees")
+}
+
+// ─── Audit Logs ─────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  actorId        String?  @map("actor_id") @db.Uuid
+  action         String
+  entityType     String   @map("entity_type")
+  entityId       String   @map("entity_id")
+  metadata       Json?    @db.JsonB
+  ipAddress      String?  @map("ip_address")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  actor        User?        @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([actorId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// ─── Refresh Tokens ─────────────────────────────────────────────────────────
+
+model RefreshToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@map("refresh_tokens")
+}
+
+// ─── CRM ENUMS ─────────────────────────────────────────────────────────────
+
+enum CustomerStatus {
+  ACTIVE
+  INACTIVE
+  BLOCKED
+}
+
+enum CustomerType {
+  INDIVIDUAL
+  ENTERPRISE
+  RETAIL
+}
+
+enum AddressType {
+  BILLING
+  SHIPPING
+  SERVICE_SITE
+}
+
+enum InteractionChannel {
+  PHONE
+  EMAIL
+  PORTAL
+  IN_PERSON
+  CHAT
+}
+
+enum WarrantyCoverageType {
+  STANDARD
+  EXTENDED
+  ACCIDENTAL_DAMAGE
+  COMPREHENSIVE
+}
+
+enum WarrantyStatus {
+  ACTIVE
+  EXPIRED
+  VOIDED
+  CLAIMED
+}
+
+// ─── Customers ─────────────────────────────────────────────────────────────
+
+model Customer {
+  id             String         @id @default(uuid()) @db.Uuid
+  organizationId String         @map("organization_id") @db.Uuid
+  customerCode   String         @map("customer_code")
+  name           String
+  email          String?
+  phone          String
+  companyName    String?        @map("company_name")
+  status         CustomerStatus @default(ACTIVE)
+  type           CustomerType   @default(INDIVIDUAL)
+  notes          String?
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+
+  organization  Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  addresses     CustomerAddress[]
+  interactions  CustomerInteraction[]
+  registrations ProductRegistration[]
+  tickets       Ticket[]
+  workOrders    WorkOrder[]
+  invoices      Invoice[]
+
+  @@unique([organizationId, customerCode])
+  @@index([organizationId])
+  @@index([phone])
+  @@index([email])
+  @@index([status])
+  @@map("customers")
+}
+
+// ─── Customer Addresses ────────────────────────────────────────────────────
+
+model CustomerAddress {
+  id          String      @id @default(uuid()) @db.Uuid
+  customerId  String      @map("customer_id") @db.Uuid
+  addressType AddressType @default(SERVICE_SITE) @map("address_type")
+  street      String
+  city        String
+  state       String
+  postalCode  String      @map("postal_code")
+  country     String      @default("India")
+  isDefault   Boolean     @default(false) @map("is_default")
+  createdAt   DateTime    @default(now()) @map("created_at")
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  workOrders WorkOrder[]
+
+  @@index([customerId])
+  @@map("customer_addresses")
+}
+
+// ─── Customer Interactions ─────────────────────────────────────────────────
+
+model CustomerInteraction {
+  id             String             @id @default(uuid()) @db.Uuid
+  organizationId String             @map("organization_id") @db.Uuid
+  customerId     String             @map("customer_id") @db.Uuid
+  actorId        String?            @map("actor_id") @db.Uuid
+  channel        InteractionChannel @default(PORTAL)
+  subject        String
+  notes          String
+  createdAt      DateTime           @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer     Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([customerId])
+  @@map("customer_interactions")
+}
+
+// ─── Product Categories ────────────────────────────────────────────────────
+
+model ProductCategory {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  name           String
+  description    String?
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  products     Product[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+  @@map("product_categories")
+}
+
+// ─── Products ──────────────────────────────────────────────────────────────
+
+model Product {
+  id                    String   @id @default(uuid()) @db.Uuid
+  organizationId        String   @map("organization_id") @db.Uuid
+  categoryId            String?  @map("category_id") @db.Uuid
+  sku                   String
+  name                  String
+  modelNumber           String?  @map("model_number")
+  description           String?
+  defaultWarrantyMonths Int      @default(12) @map("default_warranty_months")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  organization  Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  category      ProductCategory?      @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  serialNumbers ProductSerialNumber[]
+  registrations ProductRegistration[]
+  tickets       Ticket[]
+  workOrders    WorkOrder[]
+
+  @@unique([organizationId, sku])
+  @@index([organizationId])
+  @@index([categoryId])
+  @@map("products")
+}
+
+// ─── Product Serial Numbers (Inventory / Manufacturer Callsets) ────────────
+
+model ProductSerialNumber {
+  id                 String    @id @default(uuid()) @db.Uuid
+  organizationId     String    @map("organization_id") @db.Uuid
+  productId          String    @map("product_id") @db.Uuid
+  serialNumber       String    @map("serial_number")
+  manufacturingBatch String?   @map("manufacturing_batch")
+  manufacturedDate   DateTime? @map("manufactured_date")
+  isRegistered       Boolean   @default(false) @map("is_registered")
+  createdAt          DateTime  @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  product      Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, serialNumber])
+  @@index([organizationId])
+  @@index([productId])
+  @@map("product_serial_numbers")
+}
+
+// ─── Product Registrations (Customer Ownership Linking) ────────────────────
+
+model ProductRegistration {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  customerId     String   @map("customer_id") @db.Uuid
+  productId      String   @map("product_id") @db.Uuid
+  serialNumber   String   @map("serial_number")
+  purchaseDate   DateTime @map("purchase_date")
+  invoiceNumber  String?  @map("invoice_number")
+  sellerName     String?  @map("seller_name")
+  verified       Boolean  @default(true)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer     Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  product      Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  warranty     Warranty?
+  tickets      Ticket[]
+  workOrders   WorkOrder[]
+
+  @@unique([organizationId, serialNumber])
+  @@index([organizationId])
+  @@index([customerId])
+  @@index([productId])
+  @@map("product_registrations")
+}
+
+// ─── Warranties ────────────────────────────────────────────────────────────
+
+model Warranty {
+  id             String               @id @default(uuid()) @db.Uuid
+  organizationId String               @map("organization_id") @db.Uuid
+  registrationId String               @unique @map("registration_id") @db.Uuid
+  warrantyNumber String               @map("warranty_number")
+  coverageType   WarrantyCoverageType @default(STANDARD) @map("coverage_type")
+  status         WarrantyStatus       @default(ACTIVE)
+  startDate      DateTime             @map("start_date")
+  endDate        DateTime             @map("end_date")
+  terms          String?
+  createdAt      DateTime             @default(now()) @map("created_at")
+  updatedAt      DateTime             @updatedAt @map("updated_at")
+
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  registration ProductRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, warrantyNumber])
+  @@index([organizationId])
+  @@index([status])
+  @@index([endDate])
+  @@map("warranties")
+}
+
+// ─── SERVICE DESK ENUMS ────────────────────────────────────────────────────
+
+enum TicketPriority {
+  P1_CRITICAL
+  P2_HIGH
+  P3_MEDIUM
+  P4_LOW
+}
+
+enum TicketStatus {
+  OPEN
+  TRIAGED
+  IN_PROGRESS
+  WAITING_FOR_CUSTOMER
+  RESOLVED
+  CLOSED
+}
+
+enum TicketCategory {
+  HARDWARE_FAILURE
+  SOFTWARE_OS
+  PHYSICAL_DAMAGE
+  NETWORK_CONNECTIVITY
+  MAINTENANCE_AMC
+  GENERAL_INQUIRY
+}
+
+enum TicketSource {
+  PORTAL
+  EMAIL
+  PHONE
+  INTERNAL
+  CHAT
+}
+
+// ─── SLA Policies ──────────────────────────────────────────────────────────
+
+model SlaPolicy {
+  id              String         @id @default(uuid()) @db.Uuid
+  organizationId  String         @map("organization_id") @db.Uuid
+  name            String
+  description     String?
+  priority        TicketPriority
+  responseHours   Decimal        @map("response_hours") @db.Decimal(5, 2)
+  resolutionHours Decimal        @map("resolution_hours") @db.Decimal(5, 2)
+  isDefault       Boolean        @default(false) @map("is_default")
+  createdAt       DateTime       @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  tickets      Ticket[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+  @@map("sla_policies")
+}
+
+// ─── Tickets ───────────────────────────────────────────────────────────────
+
+model Ticket {
+  id                   String         @id @default(uuid()) @db.Uuid
+  organizationId       String         @map("organization_id") @db.Uuid
+  ticketNumber         String         @map("ticket_number")
+  customerId           String         @map("customer_id") @db.Uuid
+  productId            String?        @map("product_id") @db.Uuid
+  registrationId       String?        @map("registration_id") @db.Uuid
+  assignedToId         String?        @map("assigned_to_id") @db.Uuid
+  slaPolicyId          String?        @map("sla_policy_id") @db.Uuid
+
+  title                String
+  description          String
+  category             TicketCategory @default(HARDWARE_FAILURE)
+  priority             TicketPriority @default(P3_MEDIUM)
+  status               TicketStatus   @default(OPEN)
+  source               TicketSource   @default(PORTAL)
+
+  // SLA Tracking & Deadlines
+  responseDeadline     DateTime       @map("response_deadline")
+  respondedAt          DateTime?      @map("responded_at")
+  isResponseBreached   Boolean        @default(false) @map("is_response_breached")
+
+  resolutionDeadline   DateTime       @map("resolution_deadline")
+  resolvedAt           DateTime?      @map("resolved_at")
+  isResolutionBreached Boolean        @default(false) @map("is_resolution_breached")
+
+  closedAt             DateTime?      @map("closed_at")
+  createdAt            DateTime       @default(now()) @map("created_at")
+  updatedAt            DateTime       @updatedAt @map("updated_at")
+
+  organization  Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer      Customer             @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  product       Product?             @relation(fields: [productId], references: [id], onDelete: SetNull)
+  registration  ProductRegistration? @relation(fields: [registrationId], references: [id], onDelete: SetNull)
+  assignedTo    User?                @relation("TicketAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  slaPolicy     SlaPolicy?           @relation(fields: [slaPolicyId], references: [id], onDelete: SetNull)
+
+  comments      TicketComment[]
+  statusHistory TicketStatusHistory[]
+  workOrders    WorkOrder[]
+
+  @@unique([organizationId, ticketNumber])
+  @@index([organizationId])
+  @@index([customerId])
+  @@index([assignedToId])
+  @@index([status])
+  @@index([priority])
+  @@index([resolutionDeadline])
+  @@map("tickets")
+}
+
+// ─── Ticket Comments & Conversation Thread ─────────────────────────────────
+
+model TicketComment {
+  id         String   @id @default(uuid()) @db.Uuid
+  ticketId   String   @map("ticket_id") @db.Uuid
+  authorId   String?  @map("author_id") @db.Uuid
+  message    String
+  isInternal Boolean  @default(false) @map("is_internal")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author User?   @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([ticketId])
+  @@map("ticket_comments")
+}
+
+// ─── Ticket Status History & Audit Machine ──────────────────────────────────
+
+model TicketStatusHistory {
+  id          String       @id @default(uuid()) @db.Uuid
+  ticketId    String       @map("ticket_id") @db.Uuid
+  changedById String?      @map("changed_by_id") @db.Uuid
+  fromStatus  TicketStatus @map("from_status")
+  toStatus    TicketStatus @map("to_status")
+  reason      String?
+  createdAt   DateTime     @default(now()) @map("created_at")
+
+  ticket    Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  changedBy User?  @relation(fields: [changedById], references: [id], onDelete: SetNull)
+
+  @@index([ticketId])
+  @@map("ticket_status_history")
+}
+
+// ─── FIELD SERVICE ENUMS ───────────────────────────────────────────────────
+
+enum WorkOrderStatus {
+  DRAFT
+  ASSIGNED
+  ACCEPTED
+  TRAVELING
+  ON_SITE
+  DIAGNOSING
+  PARTS_PENDING
+  REPAIRED
+  COMPLETED
+  CANCELLED
+}
+
+enum WorkOrderPriority {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum TechnicianStatus {
+  AVAILABLE
+  ON_JOB
+  TRAVELING
+  OFF_DUTY
+}
+
+// ─── Technicians ───────────────────────────────────────────────────────────
+
+model Technician {
+  id             String           @id @default(uuid()) @db.Uuid
+  organizationId String           @map("organization_id") @db.Uuid
+  userId         String           @unique @map("user_id") @db.Uuid
+  technicianCode String           @map("technician_code")
+  phone          String
+  currentStatus  TechnicianStatus @default(AVAILABLE) @map("current_status")
+  skills         String[]
+  serviceZone    String           @map("service_zone")
+  maxDailyJobs   Int              @default(5) @map("max_daily_jobs")
+  rating         Decimal          @default(5.0) @db.Decimal(3, 2)
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workOrders   WorkOrder[]
+  stockMovements StockMovement[]
+
+  @@unique([organizationId, technicianCode])
+  @@index([organizationId])
+  @@index([currentStatus])
+  @@index([serviceZone])
+  @@map("technicians")
+}
+
+// ─── Work Orders ───────────────────────────────────────────────────────────
+
+model WorkOrder {
+  id                     String            @id @default(uuid()) @db.Uuid
+  organizationId         String            @map("organization_id") @db.Uuid
+  workOrderNumber        String            @map("work_order_number")
+  ticketId               String?           @map("ticket_id") @db.Uuid
+  customerId             String            @map("customer_id") @db.Uuid
+  customerAddressId      String?           @map("customer_address_id") @db.Uuid
+  productId              String?           @map("product_id") @db.Uuid
+  registrationId         String?           @map("registration_id") @db.Uuid
+  technicianId           String?           @map("technician_id") @db.Uuid
+  technicianUserId       String?           @map("technician_user_id") @db.Uuid
+
+  title                  String
+  description            String
+  priority               WorkOrderPriority @default(MEDIUM)
+  status                 WorkOrderStatus   @default(DRAFT)
+  scheduledDate          DateTime?         @map("scheduled_date")
+  timeSlot               String?           @map("time_slot")
+
+  slaResolutionDeadline  DateTime?         @map("sla_resolution_deadline")
+  travelStartedAt        DateTime?         @map("travel_started_at")
+  arrivedOnSiteAt        DateTime?         @map("arrived_on_site_at")
+  diagnosedAt            DateTime?         @map("diagnosed_at")
+  repairedAt             DateTime?         @map("repaired_at")
+  completedAt            DateTime?         @map("completed_at")
+
+  customerOtp            String?           @map("customer_otp")
+  isOtpVerified          Boolean           @default(false) @map("is_otp_verified")
+  customerFeedbackRating Int?              @map("customer_feedback_rating")
+  customerFeedbackNotes  String?           @map("customer_feedback_notes")
+
+  diagnosisNotes         String?           @map("diagnosis_notes")
+  repairResolutionSummary String?          @map("repair_resolution_summary")
+
+  createdAt              DateTime          @default(now()) @map("created_at")
+  updatedAt              DateTime          @updatedAt @map("updated_at")
+
+  organization    Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  ticket          Ticket?              @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+  customer        Customer             @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customerAddress CustomerAddress?     @relation(fields: [customerAddressId], references: [id], onDelete: SetNull)
+  product         Product?             @relation(fields: [productId], references: [id], onDelete: SetNull)
+  registration    ProductRegistration? @relation(fields: [registrationId], references: [id], onDelete: SetNull)
+  technician      Technician?          @relation(fields: [technicianId], references: [id], onDelete: SetNull)
+  technicianUser  User?                @relation("WorkOrderTechnician", fields: [technicianUserId], references: [id], onDelete: SetNull)
+
+  partsUsed       WorkOrderPartUsed[]
+  statusHistory   WorkOrderStatusHistory[]
+  stockMovements  StockMovement[]
+  shipments       Shipment[]
+  invoices        Invoice[]
+
+  @@unique([organizationId, workOrderNumber])
+  @@index([organizationId])
+  @@index([ticketId])
+  @@index([customerId])
+  @@index([technicianId])
+  @@index([status])
+  @@index([priority])
+  @@index([scheduledDate])
+  @@map("work_orders")
+}
+
+// ─── Work Order Parts Used ─────────────────────────────────────────────────
+
+model WorkOrderPartUsed {
+  id              String   @id @default(uuid()) @db.Uuid
+  workOrderId     String   @map("work_order_id") @db.Uuid
+  partNumber      String   @map("part_number")
+  partName        String   @map("part_name")
+  serialNumber    String?  @map("serial_number")
+  quantity        Int      @default(1)
+  unitCost        Decimal  @default(0) @db.Decimal(10, 2)
+  warrantyCovered Boolean  @default(true) @map("warranty_covered")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  workOrder WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+
+  @@index([workOrderId])
+  @@map("work_order_parts_used")
+}
+
+// ─── Work Order Status History ─────────────────────────────────────────────
+
+model WorkOrderStatusHistory {
+  id          String          @id @default(uuid()) @db.Uuid
+  workOrderId String          @map("work_order_id") @db.Uuid
+  fromStatus  WorkOrderStatus @map("from_status")
+  toStatus    WorkOrderStatus @map("to_status")
+  changedById String?         @map("changed_by_id") @db.Uuid
+  notes       String?
+  createdAt   DateTime        @default(now()) @map("created_at")
+
+  workOrder WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  changedBy User?     @relation(fields: [changedById], references: [id], onDelete: SetNull)
+
+  @@index([workOrderId])
+  @@map("work_order_status_history")
+}
+
+// ─── INVENTORY ENUMS ───────────────────────────────────────────────────────
+
+enum WarehouseType {
+  CENTRAL_HUB
+  REGIONAL_DEPOT
+  TECHNICIAN_VAN
+  REPAIR_CENTER
+}
+
+enum StockMovementType {
+  GOODS_RECEIPT
+  RESERVATION
+  RELEASE_RESERVATION
+  ISSUE_TO_TECHNICIAN
+  CONSUMPTION
+  RETURN_TO_WAREHOUSE
+  TRANSFER
+  ADJUSTMENT
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  ORDERED
+  RECEIVED
+  CANCELLED
+}
+
+// ─── Warehouses & Regional Hubs ────────────────────────────────────────────
+
+model Warehouse {
+  id             String        @id @default(uuid()) @db.Uuid
+  organizationId String        @map("organization_id") @db.Uuid
+  code           String
+  name           String
+  type           WarehouseType @default(REGIONAL_DEPOT)
+  address        String
+  city           String
+  state          String
+  postalCode     String        @map("postal_code")
+  country        String        @default("India")
+  isActive       Boolean       @default(true) @map("is_active")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  organization     Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  binLocations     BinLocation[]
+  stockBalances    StockBalance[]
+  incomingMovements StockMovement[] @relation("DestWarehouseMovements")
+  outgoingMovements StockMovement[] @relation("SourceWarehouseMovements")
+  shipments         Shipment[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId])
+  @@index([type])
+  @@map("warehouses")
+}
+
+// ─── Bin Locations ─────────────────────────────────────────────────────────
+
+model BinLocation {
+  id          String   @id @default(uuid()) @db.Uuid
+  warehouseId String   @map("warehouse_id") @db.Uuid
+  code        String
+  zone        String?
+  aisle       String?
+  rack        String?
+  shelf       String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  warehouse     Warehouse      @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  stockBalances StockBalance[]
+
+  @@unique([warehouseId, code])
+  @@index([warehouseId])
+  @@map("bin_locations")
+}
+
+// ─── Part Categories ───────────────────────────────────────────────────────
+
+model PartCategory {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  name           String
+  description    String?
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  parts        Part[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+  @@map("part_categories")
+}
+
+// ─── Spare Parts Master ────────────────────────────────────────────────────
+
+model Part {
+  id               String   @id @default(uuid()) @db.Uuid
+  organizationId   String   @map("organization_id") @db.Uuid
+  categoryId       String?  @map("category_id") @db.Uuid
+  partNumber       String   @map("part_number")
+  name             String
+  description      String?
+  costPrice        Decimal  @default(0) @map("cost_price") @db.Decimal(10, 2)
+  retailPrice      Decimal  @default(0) @map("retail_price") @db.Decimal(10, 2)
+  minSafetyStock   Int      @default(5) @map("min_safety_stock")
+  isSerialTracked  Boolean  @default(false) @map("is_serial_tracked")
+  compatibleModels String[] @map("compatible_models")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  organization       Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  category           PartCategory?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  stockBalances      StockBalance[]
+  stockMovements     StockMovement[]
+  purchaseOrderItems PurchaseOrderItem[]
+  shipmentItems      ShipmentItem[]
+  invoiceItems       InvoiceItem[]
+
+  @@unique([organizationId, partNumber])
+  @@index([organizationId])
+  @@index([categoryId])
+  @@map("parts")
+}
+
+// ─── Stock Balances Ledger ─────────────────────────────────────────────────
+
+model StockBalance {
+  id                String   @id @default(uuid()) @db.Uuid
+  organizationId    String   @map("organization_id") @db.Uuid
+  warehouseId       String   @map("warehouse_id") @db.Uuid
+  partId            String   @map("part_id") @db.Uuid
+  binLocationId     String?  @map("bin_location_id") @db.Uuid
+  quantityOnHand    Int      @default(0) @map("quantity_on_hand")
+  quantityReserved  Int      @default(0) @map("quantity_reserved")
+  quantityAvailable Int      @default(0) @map("quantity_available")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  warehouse    Warehouse    @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  part         Part         @relation(fields: [partId], references: [id], onDelete: Cascade)
+  binLocation  BinLocation? @relation(fields: [binLocationId], references: [id], onDelete: SetNull)
+
+  @@unique([warehouseId, partId])
+  @@index([organizationId])
+  @@index([warehouseId])
+  @@index([partId])
+  @@map("stock_balances")
+}
+
+// ─── Stock Movement Ledger (Append-Only) ────────────────────────────────────
+
+model StockMovement {
+  id                     String            @id @default(uuid()) @db.Uuid
+  organizationId         String            @map("organization_id") @db.Uuid
+  movementNumber         String            @map("movement_number")
+  partId                 String            @map("part_id") @db.Uuid
+  sourceWarehouseId      String?           @map("source_warehouse_id") @db.Uuid
+  destinationWarehouseId String?           @map("destination_warehouse_id") @db.Uuid
+  workOrderId            String?           @map("work_order_id") @db.Uuid
+  technicianId           String?           @map("technician_id") @db.Uuid
+  type                   StockMovementType
+  quantity               Int
+  unitCost               Decimal           @default(0) @map("unit_cost") @db.Decimal(10, 2)
+  serialNumber           String?           @map("serial_number")
+  referenceNotes         String?           @map("reference_notes")
+  actorId                String?           @map("actor_id") @db.Uuid
+  createdAt              DateTime          @default(now()) @map("created_at")
+
+  organization         Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  part                 Part         @relation(fields: [partId], references: [id], onDelete: Cascade)
+  sourceWarehouse      Warehouse?   @relation("SourceWarehouseMovements", fields: [sourceWarehouseId], references: [id], onDelete: SetNull)
+  destinationWarehouse Warehouse?   @relation("DestWarehouseMovements", fields: [destinationWarehouseId], references: [id], onDelete: SetNull)
+  workOrder            WorkOrder?   @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
+  technician           Technician?  @relation(fields: [technicianId], references: [id], onDelete: SetNull)
+  actor                User?        @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, movementNumber])
+  @@index([organizationId])
+  @@index([partId])
+  @@index([type])
+  @@index([createdAt])
+  @@map("stock_movements")
+}
+
+// ─── Purchase Orders ───────────────────────────────────────────────────────
+
+model PurchaseOrder {
+  id             String              @id @default(uuid()) @db.Uuid
+  organizationId String              @map("organization_id") @db.Uuid
+  poNumber       String              @map("po_number")
+  vendorName     String              @map("vendor_name")
+  status         PurchaseOrderStatus @default(DRAFT)
+  totalAmount    Decimal             @default(0) @map("total_amount") @db.Decimal(12, 2)
+  orderedAt      DateTime?           @map("ordered_at")
+  receivedAt     DateTime?           @map("received_at")
+  createdAt      DateTime            @default(now()) @map("created_at")
+  updatedAt      DateTime            @updatedAt @map("updated_at")
+
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  items        PurchaseOrderItem[]
+
+  @@unique([organizationId, poNumber])
+  @@index([organizationId])
+  @@index([status])
+  @@map("purchase_orders")
+}
+
+// ─── Purchase Order Items ──────────────────────────────────────────────────
+
+model PurchaseOrderItem {
+  id              String   @id @default(uuid()) @db.Uuid
+  purchaseOrderId String   @map("purchase_order_id") @db.Uuid
+  partId          String   @map("part_id") @db.Uuid
+  quantityOrdered Int      @map("quantity_ordered")
+  quantityReceived Int     @default(0) @map("quantity_received")
+  unitPrice       Decimal  @map("unit_price") @db.Decimal(10, 2)
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  part          Part          @relation(fields: [partId], references: [id], onDelete: Cascade)
+
+  @@index([purchaseOrderId])
+  @@map("purchase_order_items")
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// MILESTONE 6: LOGISTICS & FLEET MANAGEMENT
+// ══════════════════════════════════════════════════════════════════════════════
+
+enum ShipmentStatus {
+  DRAFT
+  READY_FOR_PICKUP
+  DISPATCHED
+  IN_TRANSIT
+  OUT_FOR_DELIVERY
+  DELIVERED
+  FAILED_ATTEMPT
+  RETURNED_TO_ORIGIN
+  CANCELLED
+}
+
+enum ShipmentType {
+  FORWARD_PART_DISPATCH
+  REVERSE_DEFECTIVE_RETURN
+  INTER_HUB_TRANSFER
+  DIRECT_CUSTOMER_DELIVERY
+}
+
+enum CarrierType {
+  INTERNAL_FLEET
+  BLUE_DART
+  DELHIVERY
+  DTDC
+  FEDEX
+}
+
+enum VehicleType {
+  VAN
+  BIKE
+  TRUCK
+}
+
+enum VehicleStatus {
+  AVAILABLE
+  ON_ROUTE
+  MAINTENANCE
+  OUT_OF_SERVICE
+}
+
+model Vehicle {
+  id                 String        @id @default(uuid()) @db.Uuid
+  organizationId     String        @map("organization_id") @db.Uuid
+  registrationNumber String        @map("registration_number")
+  model              String
+  type               VehicleType   @default(VAN)
+  status             VehicleStatus @default(AVAILABLE)
+  capacityKg         Int           @default(500) @map("capacity_kg")
+  currentDriverName  String?       @map("current_driver_name")
+  currentDriverPhone String?       @map("current_driver_phone")
+  createdAt          DateTime      @default(now()) @map("created_at")
+  updatedAt          DateTime      @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  shipments    Shipment[]
+
+  @@unique([organizationId, registrationNumber])
+  @@index([organizationId])
+  @@index([status])
+  @@map("vehicles")
+}
+
+model Shipment {
+  id                    String         @id @default(uuid()) @db.Uuid
+  organizationId        String         @map("organization_id") @db.Uuid
+  shipmentNumber        String         @map("shipment_number")
+  trackingNumber        String         @map("tracking_number")
+  type                  ShipmentType   @default(FORWARD_PART_DISPATCH)
+  carrier               CarrierType    @default(INTERNAL_FLEET)
+  status                ShipmentStatus @default(READY_FOR_PICKUP)
+
+  originWarehouseId     String?        @map("origin_warehouse_id") @db.Uuid
+  workOrderId           String?        @map("work_order_id") @db.Uuid
+  vehicleId             String?        @map("vehicle_id") @db.Uuid
+
+  destinationAddress    String         @map("destination_address")
+  destinationCity       String         @map("destination_city")
+  destinationState      String         @map("destination_state")
+  destinationPostalCode String         @map("destination_postal_code")
+  
+  recipientName         String         @map("recipient_name")
+  recipientPhone        String         @map("recipient_phone")
+
+  estimatedDelivery     DateTime?      @map("estimated_delivery")
+  actualDelivery        DateTime?      @map("actual_delivery")
+  proofOfDeliverySignee String?        @map("pod_signee")
+  proofOfDeliveryNotes  String?        @map("pod_notes")
+  notes                 String?
+  createdAt             DateTime       @default(now()) @map("created_at")
+  updatedAt             DateTime       @updatedAt @map("updated_at")
+
+  organization    Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  originWarehouse Warehouse?               @relation(fields: [originWarehouseId], references: [id], onDelete: SetNull)
+  workOrder       WorkOrder?               @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
+  vehicle         Vehicle?                 @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  items           ShipmentItem[]
+  trackingEvents  ShipmentTrackingEvent[]
+
+  @@unique([organizationId, shipmentNumber])
+  @@unique([organizationId, trackingNumber])
+  @@index([organizationId])
+  @@index([status])
+  @@index([workOrderId])
+  @@index([trackingNumber])
+  @@map("shipments")
+}
+
+model ShipmentItem {
+  id            String   @id @default(uuid()) @db.Uuid
+  shipmentId    String   @map("shipment_id") @db.Uuid
+  partId        String   @map("part_id") @db.Uuid
+  quantity      Int      @default(1)
+  serialNumbers String[] @map("serial_numbers")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  part     Part     @relation(fields: [partId], references: [id], onDelete: Cascade)
+
+  @@index([shipmentId])
+  @@map("shipment_items")
+}
+
+model ShipmentTrackingEvent {
+  id          String         @id @default(uuid()) @db.Uuid
+  shipmentId  String         @map("shipment_id") @db.Uuid
+  status      ShipmentStatus
+  location    String
+  latitude    Decimal?       @db.Decimal(10, 6)
+  longitude   Decimal?       @db.Decimal(10, 6)
+  description String
+  timestamp   DateTime       @default(now())
+  createdAt   DateTime       @default(now()) @map("created_at")
+
+  shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@index([shipmentId])
+  @@index([timestamp])
+  @@map("shipment_tracking_events")
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// MILESTONE 7: BILLING & FINANCE
+// ══════════════════════════════════════════════════════════════════════════════
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PAID
+  PARTIALLY_PAID
+  OVERDUE
+  VOID
+  WARRANTY_ABSORBED
+}
+
+enum PaymentMethod {
+  CASH
+  UPI
+  CARD
+  NET_BANKING
+  CORPORATE_CREDIT
+  WARRANTY_CLAIM
+}
+
+enum PaymentStatus {
+  SUCCESS
+  PENDING
+  FAILED
+  REFUNDED
+}
+
+model Invoice {
+  id             String        @id @default(uuid()) @db.Uuid
+  organizationId String        @map("organization_id") @db.Uuid
+  invoiceNumber  String        @map("invoice_number")
+  customerId     String        @map("customer_id") @db.Uuid
+  workOrderId    String?       @map("work_order_id") @db.Uuid
+  status         InvoiceStatus @default(ISSUED)
+
+  subtotal       Decimal       @default(0) @db.Decimal(12, 2)
+  taxAmount      Decimal       @default(0) @map("tax_amount") @db.Decimal(12, 2)
+  totalAmount    Decimal       @default(0) @map("total_amount") @db.Decimal(12, 2)
+  amountPaid     Decimal       @default(0) @map("amount_paid") @db.Decimal(12, 2)
+  balanceDue     Decimal       @default(0) @map("balance_due") @db.Decimal(12, 2)
+
+  dueDate        DateTime?     @map("due_date")
+  paidAt         DateTime?     @map("paid_at")
+  notes          String?
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer     Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  workOrder    WorkOrder?    @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
+  items        InvoiceItem[]
+  payments     Payment[]
+
+  @@unique([organizationId, invoiceNumber])
+  @@index([organizationId])
+  @@index([customerId])
+  @@index([workOrderId])
+  @@index([status])
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id                String   @id @default(uuid()) @db.Uuid
+  invoiceId         String   @map("invoice_id") @db.Uuid
+  partId            String?  @map("part_id") @db.Uuid
+  description       String
+  quantity          Int      @default(1)
+  unitPrice         Decimal  @map("unit_price") @db.Decimal(10, 2)
+  taxRate           Decimal  @default(18.0) @map("tax_rate") @db.Decimal(5, 2)
+  amount            Decimal  @db.Decimal(10, 2)
+  isWarrantyCovered Boolean  @default(false) @map("is_warranty_covered")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  part    Part?   @relation(fields: [partId], references: [id], onDelete: SetNull)
+
+  @@index([invoiceId])
+  @@map("invoice_items")
+}
+
+model Payment {
+  id             String        @id @default(uuid()) @db.Uuid
+  organizationId String        @map("organization_id") @db.Uuid
+  invoiceId      String        @map("invoice_id") @db.Uuid
+  paymentNumber  String        @map("payment_number")
+  amount         Decimal       @db.Decimal(12, 2)
+  paymentMethod  PaymentMethod @default(UPI) @map("payment_method")
+  transactionRef String?       @map("transaction_ref")
+  status         PaymentStatus @default(SUCCESS)
+  paidAt         DateTime      @default(now()) @map("paid_at")
+  notes          String?
+  createdAt      DateTime      @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invoice      Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, paymentNumber])
+  @@index([organizationId])
+  @@index([invoiceId])
+  @@index([status])
+  @@map("payments")
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SMTP EMAIL CONFIGURATION & AI COPILOT
+// ══════════════════════════════════════════════════════════════════════════════
+
+model SmtpConfig {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @unique @map("organization_id") @db.Uuid
+  host           String
+  port           Int      @default(587)
+  secure         Boolean  @default(false)
+  username       String?
+  password       String?
+  fromEmail      String   @map("from_email")
+  fromName       String   @default("ORBIT Service Operations") @map("from_name")
+  isConfigured   Boolean  @default(true) @map("is_configured")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("smtp_configs")
+}
+
+model CopilotMessage {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  role           String
+  content        String
+  tokensUsed     Int?     @map("tokens_used")
+  model          String   @default("gemini-2.5-flash")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@index([organizationId, userId])
+  @@index([createdAt])
+  @@map("copilot_messages")
+}
+
+
+

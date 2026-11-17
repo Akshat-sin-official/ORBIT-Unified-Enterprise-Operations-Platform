@@ -1,0 +1,49 @@
+# Dependencies
+node_modules/
+**/node_modules/
+.pnpm-store/
+
+# Build
+dist/
+**/dist/
+build/
+**/build/
+.next/
+out/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Prisma
+# Keep schema and seed, ignore migrations if auto-managed
+prisma/migrations/
+
+# Turbo
+.turbo/
+**/.turbo/
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Coverage
+coverage/
+**/coverage/
+
+# Misc
+*.tsbuildinfo
+**/*.tsbuildinfo

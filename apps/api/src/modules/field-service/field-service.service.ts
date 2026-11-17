@@ -17,6 +17,7 @@ import {
   WorkOrderPriority,
   WorkOrderStatus,
   TechnicianStatus,
+  WarrantyStatus,
   Prisma,
 } from '@prisma/client';
 
@@ -524,15 +525,51 @@ export class FieldServiceService {
   async addPartUsed(organizationId: string, workOrderId: string, dto: AddPartUsedDto) {
     const wo = await this.getWorkOrder(organizationId, workOrderId);
 
+    let partNumber = dto.partNumber || '';
+    let partName = dto.partName || '';
+    let unitCost = dto.unitCost !== undefined ? Number(dto.unitCost) : 0;
+
+    // Auto-fetch part details & price from inventory catalog if partId or partNumber is supplied
+    const catalogPart = await this.prisma.part.findFirst({
+      where: {
+        organizationId,
+        OR: [
+          ...(dto.partId ? [{ id: dto.partId }] : []),
+          ...(dto.partNumber ? [{ partNumber: { equals: dto.partNumber, mode: 'insensitive' as const } }] : []),
+        ],
+      },
+    });
+
+    if (catalogPart) {
+      if (!partNumber) partNumber = catalogPart.partNumber;
+      if (!partName) partName = catalogPart.name;
+      if (unitCost === 0) {
+        unitCost = Number(catalogPart.costPrice || catalogPart.retailPrice || 0);
+      }
+    }
+
+    if (!partNumber) {
+      throw new BadRequestException('Part number or valid catalog part selection is required');
+    }
+    if (!partName) {
+      partName = partNumber;
+    }
+
+    // Auto-determine warranty coverage if omitted
+    let warrantyCovered = dto.warrantyCovered;
+    if (warrantyCovered === undefined) {
+      warrantyCovered = Boolean(wo.registration?.warranty?.status === WarrantyStatus.ACTIVE);
+    }
+
     return this.prisma.workOrderPartUsed.create({
       data: {
         workOrderId: wo.id,
-        partNumber: dto.partNumber,
-        partName: dto.partName,
+        partNumber,
+        partName,
         serialNumber: dto.serialNumber,
         quantity: dto.quantity || 1,
-        unitCost: dto.unitCost || 0,
-        warrantyCovered: dto.warrantyCovered ?? true,
+        unitCost,
+        warrantyCovered,
       },
     });
   }

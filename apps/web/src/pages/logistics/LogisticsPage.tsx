@@ -87,7 +87,7 @@ export const LogisticsPage: React.FC = () => {
   const [shipments, setShipments] = useState<Shipment[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [warehouses, setWarehouses] = useState<{ id: string; code: string; name: string }[]>([]);
-  const [parts, setParts] = useState<{ id: string; partNumber: string; name: string }[]>([]);
+  const [parts, setParts] = useState<{ id: string; partNumber: string; name: string; costPrice?: number; sellingPrice?: number }[]>([]);
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -713,9 +713,20 @@ export const LogisticsPage: React.FC = () => {
                   className="w-full mt-1 h-9 px-3 rounded-md border border-border/80 text-xs bg-white text-ink focus:outline-none"
                 >
                   {parts.map((p) => (
-                    <option key={p.id} value={p.id}>{p.partNumber} - {p.name}</option>
+                    <option key={p.id} value={p.id}>
+                      {p.partNumber} - {p.name} {p.costPrice ? `(₹${Number(p.costPrice).toLocaleString('en-IN')})` : ''}
+                    </option>
                   ))}
                 </select>
+                {(() => {
+                  const selectedPart = parts.find((p) => p.id === createForm.partId);
+                  if (!selectedPart) return null;
+                  return (
+                    <p className="text-[10px] text-muted-foreground mt-1 font-mono">
+                      Selected: <strong className="text-ink">{selectedPart.name}</strong> • Value: ₹{Number(selectedPart.costPrice || selectedPart.sellingPrice || 0).toLocaleString('en-IN')}
+                    </p>
+                  );
+                })()}
               </div>
 
               <div>

@@ -77,15 +77,20 @@ export class AssignWorkOrderDto {
 }
 
 export class AddPartUsedDto {
-  @ApiProperty({ example: 'PANEL-OLED-14' })
+  @ApiPropertyOptional({ example: 'uuid-of-part-record' })
   @IsString()
-  @IsNotEmpty()
-  partNumber: string;
+  @IsOptional()
+  partId?: string;
 
-  @ApiProperty({ example: '14" 2.8K OLED Display Matrix Assembly' })
+  @ApiPropertyOptional({ example: 'PANEL-OLED-14' })
   @IsString()
-  @IsNotEmpty()
-  partName: string;
+  @IsOptional()
+  partNumber?: string;
+
+  @ApiPropertyOptional({ example: '14" 2.8K OLED Display Matrix Assembly' })
+  @IsString()
+  @IsOptional()
+  partName?: string;
 
   @ApiPropertyOptional({ example: 'PART-SN-99812' })
   @IsString()

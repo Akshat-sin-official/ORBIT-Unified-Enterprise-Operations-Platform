@@ -60,9 +60,12 @@ export const WorkOrderDetailPage: React.FC = () => {
   const [repairSummary, setRepairSummary] = useState('');
   const [statusSubmitting, setStatusSubmitting] = useState(false);
 
-  // Add Part modal
+  // Add Part modal & catalog auto-fetch
   const [partModalOpen, setPartModalOpen] = useState(false);
+  const [catalogParts, setCatalogParts] = useState<any[]>([]);
+  const [selectedCatalogPartId, setSelectedCatalogPartId] = useState<string>('');
   const [partForm, setPartForm] = useState({
+    partId: '',
     partNumber: '',
     partName: '',
     serialNumber: '',
@@ -85,6 +88,12 @@ export const WorkOrderDetailPage: React.FC = () => {
       setLoading(true);
       const res = await api.get(`/field-service/work-orders/${id}`);
       setWorkOrder(res.data);
+      if (res.data?.registration?.warranty?.isActive !== undefined) {
+        setPartForm((prev) => ({
+          ...prev,
+          warrantyCovered: Boolean(res.data.registration.warranty.isActive),
+        }));
+      }
     } catch (err) {
       console.error('Failed to load work order:', err);
     } finally {
@@ -93,8 +102,51 @@ export const WorkOrderDetailPage: React.FC = () => {
   };
 
   useEffect(() => {
-    if (id) fetchWorkOrder();
+    if (id) {
+      fetchWorkOrder();
+      api
+        .get('/inventory/parts')
+        .then((res) => {
+          setCatalogParts(res.data?.items || []);
+        })
+        .catch(() => {});
+    }
   }, [id]);
+
+  const handleSelectCatalogPart = (partId: string) => {
+    setSelectedCatalogPartId(partId);
+    if (!partId) return;
+    const part = catalogParts.find((p) => p.id === partId);
+    if (part) {
+      setPartForm((prev) => ({
+        ...prev,
+        partId: part.id,
+        partNumber: part.partNumber,
+        partName: part.name,
+        unitCost: Number(part.costPrice || part.sellingPrice || 0),
+      }));
+    }
+  };
+
+  const handlePartNumberChange = (rawInput: string) => {
+    const val = rawInput.toUpperCase();
+    setPartForm((prev) => ({ ...prev, partNumber: val }));
+
+    // Auto-match against catalog if user typed part number
+    const matched = catalogParts.find(
+      (p) => p.partNumber.toUpperCase() === val.trim() || p.barcode === val.trim(),
+    );
+    if (matched) {
+      setSelectedCatalogPartId(matched.id);
+      setPartForm((prev) => ({
+        ...prev,
+        partId: matched.id,
+        partNumber: matched.partNumber,
+        partName: matched.name,
+        unitCost: Number(matched.costPrice || matched.sellingPrice || 0),
+      }));
+    }
+  };
 
   const loadRecommendations = async () => {
     try {
@@ -155,13 +207,15 @@ export const WorkOrderDetailPage: React.FC = () => {
       setPartSubmitting(true);
       await api.post(`/field-service/work-orders/${id}/parts`, partForm);
       setPartModalOpen(false);
+      setSelectedCatalogPartId('');
       setPartForm({
+        partId: '',
         partNumber: '',
         partName: '',
         serialNumber: '',
         quantity: 1,
         unitCost: 0,
-        warrantyCovered: true,
+        warrantyCovered: Boolean(workOrder?.registration?.warranty?.isActive ?? true),
       });
       fetchWorkOrder();
     } catch (err: any) {
@@ -823,16 +877,49 @@ export const WorkOrderDetailPage: React.FC = () => {
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleAddPart} className="space-y-3 py-2 text-xs">
+          <form onSubmit={handleAddPart} className="space-y-3.5 py-2 text-xs">
+            {/* Quick Catalog Auto-Fill Selector */}
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold text-ink flex items-center justify-between">
+                <span>Select Part from Inventory Catalog</span>
+                <span className="text-[10px] text-emerald-600 font-medium">Auto-fetches details & price</span>
+              </Label>
+              <select
+                value={selectedCatalogPartId}
+                onChange={(e) => handleSelectCatalogPart(e.target.value)}
+                className="w-full h-8.5 px-2 text-xs rounded-md border border-border/80 bg-white text-ink focus:outline-none focus:border-primary"
+              >
+                <option value="">-- Choose from Catalog (or enter manually below) --</option>
+                {catalogParts.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.partNumber} • {p.name} (₹{Number(p.costPrice || p.sellingPrice || 0).toLocaleString('en-IN')})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Auto-Populated Highlight Pill */}
+            {selectedCatalogPartId && (
+              <div className="p-2.5 rounded-lg bg-emerald-50/80 border border-emerald-200 text-[11px] text-emerald-900 flex items-center justify-between animate-fade-in">
+                <div>
+                  <span className="font-semibold">{partForm.partName}</span>
+                  <div className="text-[10px] text-emerald-700/90 font-mono mt-0.5">
+                    SKU: {partForm.partNumber} • Standard Unit Cost: ₹{partForm.unitCost.toLocaleString('en-IN')}
+                  </div>
+                </div>
+                <Badge variant="outline" className="bg-white border-emerald-300 text-emerald-700 text-[10px] font-mono">
+                  Auto-Fetched
+                </Badge>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
-                <Label className="text-xs">Part Number *</Label>
+                <Label className="text-xs">Part Number (SKU) *</Label>
                 <Input
                   required
                   value={partForm.partNumber}
-                  onChange={(e) =>
-                    setPartForm({ ...partForm, partNumber: e.target.value.toUpperCase() })
-                  }
+                  onChange={(e) => handlePartNumberChange(e.target.value)}
                   placeholder="e.g. FAN-LEG-5P"
                   className="h-8 text-xs font-mono uppercase bg-[#FAF9F6]"
                 />
@@ -842,6 +929,7 @@ export const WorkOrderDetailPage: React.FC = () => {
                 <Label className="text-xs">Quantity</Label>
                 <Input
                   type="number"
+                  min="1"
                   value={partForm.quantity}
                   onChange={(e) =>
                     setPartForm({ ...partForm, quantity: Number(e.target.value) || 1 })
@@ -874,9 +962,11 @@ export const WorkOrderDetailPage: React.FC = () => {
 
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
-                <Label className="text-xs">Unit Cost (₹)</Label>
+                <Label className="text-xs">Unit Cost (₹) *</Label>
                 <Input
                   type="number"
+                  min="0"
+                  step="0.01"
                   value={partForm.unitCost}
                   onChange={(e) =>
                     setPartForm({ ...partForm, unitCost: Number(e.target.value) || 0 })

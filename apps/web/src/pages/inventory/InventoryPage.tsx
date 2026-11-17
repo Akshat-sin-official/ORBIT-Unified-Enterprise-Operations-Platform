@@ -1085,11 +1085,27 @@ export const InventoryPage: React.FC = () => {
               >
                 {parts.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.partNumber} - {p.name}
+                    {p.partNumber} - {p.name} (₹{Number(p.costPrice).toLocaleString('en-IN')})
                   </option>
                 ))}
               </select>
             </div>
+
+            {(() => {
+              const selectedPart = parts.find((p) => p.id === receiptForm.partId);
+              if (!selectedPart) return null;
+              return (
+                <div className="p-2.5 rounded-lg bg-emerald-50/70 border border-emerald-200/80 text-[11px] text-emerald-900 flex items-center justify-between">
+                  <div>
+                    <span className="font-semibold">{selectedPart.name}</span>
+                    <span className="font-mono text-[10px] ml-1.5 text-emerald-700/80">({selectedPart.partNumber})</span>
+                  </div>
+                  <div className="font-mono text-emerald-800 text-xs font-semibold">
+                    Standard Cost: ₹{Number(selectedPart.costPrice).toLocaleString('en-IN')}
+                  </div>
+                </div>
+              );
+            })()}
 
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -1219,11 +1235,27 @@ export const InventoryPage: React.FC = () => {
               >
                 {parts.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.partNumber} - {p.name}
+                    {p.partNumber} - {p.name} (₹{Number(p.costPrice).toLocaleString('en-IN')})
                   </option>
                 ))}
               </select>
             </div>
+
+            {(() => {
+              const selectedPart = parts.find((p) => p.id === receiptForm.partId);
+              if (!selectedPart) return null;
+              return (
+                <div className="p-2.5 rounded-lg bg-emerald-50/70 border border-emerald-200/80 text-[11px] text-emerald-900 flex items-center justify-between">
+                  <div>
+                    <span className="font-semibold">{selectedPart.name}</span>
+                    <span className="font-mono text-[10px] ml-1.5 text-emerald-700/80">({selectedPart.partNumber})</span>
+                  </div>
+                  <div className="font-mono text-emerald-800 text-xs font-semibold">
+                    Standard Cost: ₹{Number(selectedPart.costPrice).toLocaleString('en-IN')}
+                  </div>
+                </div>
+              );
+            })()}
 
             <div>
               <Label className="text-xs font-medium">Quantity to Transfer</Label>

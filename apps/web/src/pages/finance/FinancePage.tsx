@@ -88,6 +88,8 @@ export const FinancePage: React.FC = () => {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [customers, setCustomers] = useState<{ id: string; name: string; phone: string }[]>([]);
   const [workOrders, setWorkOrders] = useState<{ id: string; workOrderNumber: string; title: string }[]>([]);
+  const [catalogParts, setCatalogParts] = useState<any[]>([]);
+  const [selectedPartId, setSelectedPartId] = useState<string>('');
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -123,17 +125,19 @@ export const FinancePage: React.FC = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [sumRes, invRes, custRes, woRes] = await Promise.all([
+      const [sumRes, invRes, custRes, woRes, partsRes] = await Promise.all([
         api.get('/finance/summary').catch(() => ({ data: null })),
         api.get('/finance/invoices').catch(() => ({ data: { items: [] } })),
         api.get('/crm/customers').catch(() => ({ data: { items: [] } })),
         api.get('/field-service/work-orders').catch(() => ({ data: { items: [] } })),
+        api.get('/inventory/parts').catch(() => ({ data: { items: [] } })),
       ]);
 
       setSummary(sumRes.data);
       setInvoices(invRes.data?.items || []);
       setCustomers(custRes.data?.items || []);
       setWorkOrders(woRes.data?.items || []);
+      setCatalogParts(partsRes.data?.items || []);
 
       if (custRes.data?.items?.length > 0) {
         setCreateForm((p) => ({ ...p, customerId: custRes.data.items[0].id }));
@@ -142,6 +146,49 @@ export const FinancePage: React.FC = () => {
       console.error('Failed to load finance data', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSelectCatalogPart = (partId: string) => {
+    setSelectedPartId(partId);
+    if (!partId) return;
+    const part = catalogParts.find((p) => p.id === partId);
+    if (part) {
+      setCreateForm((prev) => ({
+        ...prev,
+        itemDescription: `${part.name} (SKU: ${part.partNumber})`,
+        itemUnitPrice: Number(part.sellingPrice || part.costPrice || 0),
+      }));
+    }
+  };
+
+  const handleSelectWorkOrder = async (woId: string) => {
+    setCreateForm((prev) => ({ ...prev, workOrderId: woId }));
+    if (!woId) return;
+    try {
+      const res = await api.get(`/field-service/work-orders/${woId}`);
+      const wo = res.data;
+      if (wo?.customerId) {
+        setCreateForm((prev) => ({ ...prev, customerId: wo.customerId }));
+      }
+      if (wo?.partsUsed?.length > 0) {
+        const firstPart = wo.partsUsed[0];
+        setCreateForm((prev) => ({
+          ...prev,
+          itemDescription: `Spare Part Replacement: ${firstPart.partName} (${firstPart.partNumber})`,
+          itemQuantity: firstPart.quantity || 1,
+          itemUnitPrice: Number(firstPart.unitCost || 0),
+          isWarrantyCovered: Boolean(firstPart.warrantyCovered),
+        }));
+      } else if (wo?.title) {
+        setCreateForm((prev) => ({
+          ...prev,
+          itemDescription: `Field Service Repair: ${wo.title} (#${wo.workOrderNumber})`,
+          isWarrantyCovered: Boolean(wo?.registration?.warranty?.isActive),
+        }));
+      }
+    } catch (err) {
+      // silent catch
     }
   };
 
@@ -589,7 +636,7 @@ export const FinancePage: React.FC = () => {
               <Label className="text-xs font-medium">Linked Field Service Work Order (Optional)</Label>
               <select
                 value={createForm.workOrderId}
-                onChange={(e) => setCreateForm({ ...createForm, workOrderId: e.target.value })}
+                onChange={(e) => handleSelectWorkOrder(e.target.value)}
                 className="w-full mt-1 h-9 px-3 rounded-md border border-border/80 text-xs bg-white text-ink focus:outline-none"
               >
                 <option value="">None / Standalone Billing</option>
@@ -600,12 +647,33 @@ export const FinancePage: React.FC = () => {
             </div>
 
             <div className="p-3 bg-zinc-50 rounded-lg border border-border/70 space-y-3">
-              <span className="text-xs font-semibold text-ink block">Line Item Details</span>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-ink block">Line Item Details</span>
+                <span className="text-[10px] text-muted-foreground">Pick a spare part to auto-fill description & price</span>
+              </div>
+
+              {/* Spare Part Auto-Fill Selector */}
+              <div>
+                <Label className="text-[11px] font-medium text-ink">Auto-Fill from Spare Parts Catalog</Label>
+                <select
+                  value={selectedPartId}
+                  onChange={(e) => handleSelectCatalogPart(e.target.value)}
+                  className="w-full mt-1 h-8 px-2 rounded-md border border-border/80 text-xs bg-white text-ink focus:outline-none"
+                >
+                  <option value="">-- Choose Spare Part (Optional) --</option>
+                  {catalogParts.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.partNumber} • {p.name} (Selling: ₹{Number(p.sellingPrice || p.costPrice || 0).toLocaleString('en-IN')})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <div>
                 <Label className="text-xs font-medium">Item Description</Label>
                 <Input
                   required
-                  placeholder="e.g. On-site engineer diagnostic visit / replacement battery"
+                  placeholder="e.g. Dual Vapor Chamber Fan Assembly (SKU: FAN-LEG-5P)"
                   value={createForm.itemDescription}
                   onChange={(e) => setCreateForm({ ...createForm, itemDescription: e.target.value })}
                   className="mt-1 h-9 text-xs bg-white"

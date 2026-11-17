@@ -1,14 +1,24 @@
-import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsOptional, IsString } from 'class-validator';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class SendTestWhatsAppDto {
-  @ApiProperty({ example: '+919876543210', description: 'Destination mobile number with or without country code' })
+  @ApiPropertyOptional({ example: '919876543210', description: 'Destination mobile number with country code' })
   @IsString()
-  @IsNotEmpty()
-  phoneNumber: string;
+  @IsOptional()
+  phoneNumber?: string;
+
+  @ApiPropertyOptional({ example: '919876543210', description: 'Destination mobile number (alias)' })
+  @IsString()
+  @IsOptional()
+  recipientPhone?: string;
 
   @ApiPropertyOptional({ example: 'Test message from ORBIT Operations Platform' })
   @IsString()
   @IsOptional()
   customMessage?: string;
+
+  @ApiPropertyOptional({ example: 'Test message from ORBIT Operations Platform' })
+  @IsString()
+  @IsOptional()
+  message?: string;
 }

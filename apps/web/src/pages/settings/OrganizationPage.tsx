@@ -17,6 +17,10 @@ import {
   Key,
   MessageSquare,
   Smartphone,
+  QrCode,
+  RefreshCw,
+  Power,
+  X,
 } from 'lucide-react';
 
 export const OrganizationPage: React.FC = () => {
@@ -46,18 +50,30 @@ export const OrganizationPage: React.FC = () => {
   const [sendingTest, setSendingTest] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
-  // WhatsApp Automation Gateway Configuration
-  const [whatsAppConfig, setWhatsAppConfig] = useState({
-    gatewayUrl: 'https://nakshtraventures.in/wa-api',
-    apiKey: '',
-    senderNumber: '',
-    sessionName: 'default',
-    enableCustomerAlerts: true,
-    enableStaffAlerts: true,
-    maskedApiKey: null as string | null,
-    isConfigured: false,
+  // WhatsApp Device Pairing & Automations
+  const [whatsAppStatus, setWhatsAppStatus] = useState<{
+    isConnected: boolean;
+    phoneNumber?: string;
+    jid?: string;
+    instanceName: string;
+    notifyCustomer: boolean;
+    notifyStaff: boolean;
+  }>({
+    isConnected: false,
+    phoneNumber: '',
+    jid: '',
+    instanceName: 'orbit',
+    notifyCustomer: true,
+    notifyStaff: true,
   });
-  const [savingWhatsApp, setSavingWhatsApp] = useState(false);
+  const [showQrModal, setShowQrModal] = useState(false);
+  const [qrCodeData, setQrCodeData] = useState<string>('');
+  const [qrLoading, setQrLoading] = useState(false);
+  const [qrConnected, setQrConnected] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
+  const [savingPrefs, setSavingPrefs] = useState(false);
+
+  // Test WhatsApp Sender
   const [whatsAppTestPhone, setWhatsAppTestPhone] = useState('');
   const [whatsAppTestMessage, setWhatsAppTestMessage] = useState('Hello! This is a test notification from ORBIT Enterprise Operations platform.');
   const [sendingWhatsAppTest, setSendingWhatsAppTest] = useState(false);
@@ -84,7 +100,7 @@ export const OrganizationPage: React.FC = () => {
         api.get('/organizations/current').catch(() => ({ data: null })),
         api.get('/settings/smtp').catch(() => ({ data: null })),
         api.get('/copilot/config').catch(() => ({ data: null })),
-        api.get('/whatsapp/config').catch(() => ({ data: null })),
+        api.get('/whatsapp/status').catch(() => ({ data: null })),
       ]);
 
       if (orgRes.data) {
@@ -108,16 +124,7 @@ export const OrganizationPage: React.FC = () => {
       }
 
       if (waRes.data) {
-        setWhatsAppConfig({
-          gatewayUrl: waRes.data.gatewayUrl || 'https://nakshtraventures.in/wa-api',
-          apiKey: '',
-          senderNumber: waRes.data.senderNumber || '',
-          sessionName: waRes.data.sessionName || 'default',
-          enableCustomerAlerts: waRes.data.enableCustomerAlerts ?? true,
-          enableStaffAlerts: waRes.data.enableStaffAlerts ?? true,
-          maskedApiKey: waRes.data.maskedApiKey || null,
-          isConfigured: Boolean(waRes.data.isConfigured),
-        });
+        setWhatsAppStatus(waRes.data);
       }
 
       if (geminiRes.data) {
@@ -203,40 +210,98 @@ export const OrganizationPage: React.FC = () => {
     }
   };
 
-  const handleSaveWhatsApp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSavingWhatsApp(true);
-    setWhatsAppTestResult(null);
-    try {
-      const payload: any = {
-        gatewayUrl: whatsAppConfig.gatewayUrl,
-        sessionName: whatsAppConfig.sessionName,
-        senderNumber: whatsAppConfig.senderNumber || undefined,
-        enableCustomerAlerts: whatsAppConfig.enableCustomerAlerts,
-        enableStaffAlerts: whatsAppConfig.enableStaffAlerts,
-      };
+  // QR Code Auto-Polling
+  useEffect(() => {
+    if (!showQrModal || qrConnected) return;
 
-      if (whatsAppConfig.apiKey && whatsAppConfig.apiKey.trim() !== '') {
-        payload.apiKey = whatsAppConfig.apiKey;
+    let isSubscribed = true;
+    const interval = setInterval(async () => {
+      try {
+        const res = await api.get('/whatsapp/status');
+        if (isSubscribed && res.data?.isConnected) {
+          setQrConnected(true);
+          setWhatsAppStatus(res.data);
+          setTimeout(() => {
+            if (isSubscribed) setShowQrModal(false);
+          }, 2500);
+        }
+      } catch (e) {
+        // silent catch
       }
+    }, 3000);
 
-      const res = await api.patch('/whatsapp/config', payload);
-      setWhatsAppConfig((prev) => ({
-        ...prev,
-        ...res.data,
-        apiKey: '',
-      }));
-      alert('WhatsApp Automation Gateway configuration saved successfully');
+    return () => {
+      isSubscribed = false;
+      clearInterval(interval);
+    };
+  }, [showQrModal, qrConnected]);
+
+  const handleOpenPairingModal = async () => {
+    setShowQrModal(true);
+    setQrLoading(true);
+    setQrConnected(false);
+    setQrCodeData('');
+    try {
+      const res = await api.post('/whatsapp/pair-qr');
+      if (res.data?.qrcode) {
+        setQrCodeData(res.data.qrcode);
+      }
+      if (res.data?.isConnected) {
+        setQrConnected(true);
+        setWhatsAppStatus((prev) => ({ ...prev, isConnected: true }));
+      }
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to update WhatsApp configuration');
+      alert(err.response?.data?.message || 'Failed to initiate WhatsApp pairing session');
     } finally {
-      setSavingWhatsApp(false);
+      setQrLoading(false);
+    }
+  };
+
+  const handleDisconnectWhatsApp = async () => {
+    if (
+      !confirm(
+        'Are you sure you want to unlink this WhatsApp device? Outgoing WhatsApp alerts will pause until re-linked.',
+      )
+    )
+      return;
+    setDisconnecting(true);
+    try {
+      await api.post('/whatsapp/disconnect');
+      setWhatsAppStatus((prev) => ({
+        ...prev,
+        isConnected: false,
+        phoneNumber: '',
+        jid: '',
+      }));
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to unlink device');
+    } finally {
+      setDisconnecting(false);
+    }
+  };
+
+  const handleTogglePreference = async (key: 'notifyCustomer' | 'notifyStaff', val: boolean) => {
+    const updated = {
+      ...whatsAppStatus,
+      [key]: val,
+    };
+    setWhatsAppStatus(updated);
+    setSavingPrefs(true);
+    try {
+      await api.patch('/whatsapp/preferences', {
+        notifyCustomer: updated.notifyCustomer,
+        notifyStaff: updated.notifyStaff,
+      });
+    } catch (err: any) {
+      alert('Failed to update preference');
+    } finally {
+      setSavingPrefs(false);
     }
   };
 
   const handleSendTestWhatsApp = async () => {
     if (!whatsAppTestPhone.trim()) {
-      alert('Please enter a valid phone number (e.g. 919876543210)');
+      alert('Please enter a valid phone number with country code (e.g. 919876543210)');
       return;
     }
     setSendingWhatsAppTest(true);
@@ -370,8 +435,8 @@ export const OrganizationPage: React.FC = () => {
               <div className="flex items-center gap-1.5">
                 <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
                 WhatsApp Automation
-                {whatsAppConfig.isConfigured ? (
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                {whatsAppStatus.isConnected ? (
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                 ) : (
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
                 )}
@@ -644,149 +709,142 @@ export const OrganizationPage: React.FC = () => {
           {/* Tab 3: WhatsApp Automation Gateway */}
           {activeTab === 'whatsapp' && (
             <div className="space-y-6">
+              {/* WhatsApp Device Connection Card */}
               <Card>
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div>
                       <CardTitle className="text-sm font-bold font-poppins text-ink flex items-center gap-2">
                         <MessageSquare className="w-4 h-4 text-emerald-600" />
-                        WhatsApp Messaging & Automation Gateway
+                        WhatsApp Device Pairing & Automation
                       </CardTitle>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        Automated real-time notifications for field service engineers and consumer touchpoints via the WhatsApp Automation Platform.
+                        Link your operational WhatsApp account via QR Code to automate field dispatch messages and customer notifications.
                       </p>
                     </div>
-                    {whatsAppConfig.isConfigured ? (
+                    {whatsAppStatus.isConnected ? (
                       <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] gap-1 font-mono">
-                        <CheckCircle2 className="w-2.5 h-2.5" /> GATEWAY CONNECTED
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        ONLINE & PAIRED
                       </Badge>
                     ) : (
                       <Badge variant="outline" className="text-amber-600 border-amber-300 text-[10px] font-mono">
-                        SETUP REQUIRED
+                        DEVICE NOT LINKED
                       </Badge>
                     )}
                   </div>
                 </CardHeader>
 
                 <CardContent className="space-y-5">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="p-3.5 bg-emerald-50/50 rounded-xl border border-emerald-100 space-y-1.5 text-xs">
-                      <div className="flex items-center gap-1.5 font-semibold text-emerald-900">
-                        <Smartphone className="w-3.5 h-3.5 text-emerald-600" />
-                        Customer Touchpoints
+                  {/* Status Banner */}
+                  {whatsAppStatus.isConnected ? (
+                    <div className="p-5 bg-gradient-to-r from-emerald-50/80 via-emerald-50/30 to-transparent rounded-2xl border border-emerald-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-sm shrink-0">
+                          <Smartphone className="w-6 h-6" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-sm font-bold text-ink">
+                              {whatsAppStatus.phoneNumber || whatsAppStatus.jid || 'WhatsApp Connected'}
+                            </h4>
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-800 font-mono">
+                              Live Session
+                            </span>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            Line ID: <span className="font-mono text-ink font-semibold">{whatsAppStatus.instanceName}</span> • Operational notifications are delivering in real-time.
+                          </p>
+                        </div>
                       </div>
-                      <p className="text-emerald-700/80 text-[11px] leading-relaxed">
-                        Automatic customer updates for ticket creation acknowledgments, technician dispatch with estimated arrival slot, 6-digit completion OTP verification, and invoice payment receipts.
+
+                      <div className="flex items-center gap-2">
+                        <Button
+                          onClick={handleOpenPairingModal}
+                          size="sm"
+                          variant="outline"
+                          className="text-xs font-semibold border-border hover:bg-slate-50"
+                        >
+                          <QrCode className="w-3.5 h-3.5 mr-1.5 text-slate-600" />
+                          Re-scan QR
+                        </Button>
+                        <Button
+                          onClick={handleDisconnectWhatsApp}
+                          disabled={disconnecting}
+                          size="sm"
+                          variant="outline"
+                          className="text-xs font-semibold text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+                        >
+                          {disconnecting ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Power className="w-3.5 h-3.5 mr-1.5" />}
+                          Unlink Device
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-5 bg-gradient-to-r from-amber-50/80 via-amber-50/30 to-transparent rounded-2xl border border-amber-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-2xl bg-amber-500 text-white flex items-center justify-center shadow-sm shrink-0">
+                          <QrCode className="w-6 h-6" />
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-bold text-ink">Pair WhatsApp Web Companion</h4>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            Scan a QR code from WhatsApp on your mobile phone to activate instant alerts. No API credentials required.
+                          </p>
+                        </div>
+                      </div>
+
+                      <Button
+                        onClick={handleOpenPairingModal}
+                        size="sm"
+                        className="text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs shrink-0"
+                      >
+                        <QrCode className="w-3.5 h-3.5 mr-1.5" />
+                        Pair Device (Scan QR Code)
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* Channel Description Cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+                    <div className="p-4 bg-zinc-50/70 rounded-xl border border-border/70 space-y-2 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-ink flex items-center gap-1.5">
+                          <Smartphone className="w-3.5 h-3.5 text-emerald-600" />
+                          Customer Touchpoints
+                        </span>
+                        <input
+                          type="checkbox"
+                          checked={whatsAppStatus.notifyCustomer}
+                          onChange={(e) => handleTogglePreference('notifyCustomer', e.target.checked)}
+                          disabled={savingPrefs}
+                          className="rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4 cursor-pointer"
+                        />
+                      </div>
+                      <p className="text-muted-foreground text-[11px] leading-relaxed">
+                        Dispatches automated notifications for service request acknowledgments, engineer dispatch arrival slots, 6-digit repair OTP sign-offs, and payment receipts.
                       </p>
                     </div>
 
-                    <div className="p-3.5 bg-blue-50/50 rounded-xl border border-blue-100 space-y-1.5 text-xs">
-                      <div className="flex items-center gap-1.5 font-semibold text-blue-900">
-                        <Send className="w-3.5 h-3.5 text-blue-600" />
-                        Internal Staff Dispatch Alerts
+                    <div className="p-4 bg-zinc-50/70 rounded-xl border border-border/70 space-y-2 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-ink flex items-center gap-1.5">
+                          <Send className="w-3.5 h-3.5 text-blue-600" />
+                          Field Staff Dispatch Alerts
+                        </span>
+                        <input
+                          type="checkbox"
+                          checked={whatsAppStatus.notifyStaff}
+                          onChange={(e) => handleTogglePreference('notifyStaff', e.target.checked)}
+                          disabled={savingPrefs}
+                          className="rounded text-primary focus:ring-primary w-4 h-4 cursor-pointer"
+                        />
                       </div>
-                      <p className="text-blue-700/80 text-[11px] leading-relaxed">
-                        Instant dispatch messages sent straight to technician WhatsApp numbers with customer address, direct phone link, issue title, and priority SLA.
+                      <p className="text-muted-foreground text-[11px] leading-relaxed">
+                        Sends instant work order assignments straight to technicians' WhatsApp with customer address, direct phone link, issue title, and priority SLA.
                       </p>
                     </div>
                   </div>
-
-                  <form onSubmit={handleSaveWhatsApp} className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <Label className="text-xs font-medium">Gateway Base URL</Label>
-                        <Input
-                          placeholder="https://nakshtraventures.in/wa-api"
-                          value={whatsAppConfig.gatewayUrl}
-                          onChange={(e) => setWhatsAppConfig({ ...whatsAppConfig, gatewayUrl: e.target.value })}
-                          required
-                          className="h-9 text-xs font-mono"
-                        />
-                        <p className="text-[11px] text-muted-foreground">
-                          Live API gateway endpoint (e.g. wa.nakshtraventures.in).
-                        </p>
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <Label className="text-xs font-medium">Gateway API Key</Label>
-                        <Input
-                          type="password"
-                          placeholder={whatsAppConfig.maskedApiKey ? `Configured: ${whatsAppConfig.maskedApiKey}` : 'Enter gateway API key...'}
-                          value={whatsAppConfig.apiKey}
-                          onChange={(e) => setWhatsAppConfig({ ...whatsAppConfig, apiKey: e.target.value })}
-                          className="h-9 text-xs font-mono"
-                        />
-                        <p className="text-[11px] text-muted-foreground">
-                          {whatsAppConfig.maskedApiKey
-                            ? `Active: ${whatsAppConfig.maskedApiKey}. Leave blank to keep current.`
-                            : 'Global authentication key for the WhatsApp gateway.'}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <Label className="text-xs font-medium">Session Identifier</Label>
-                        <Input
-                          placeholder="default"
-                          value={whatsAppConfig.sessionName}
-                          onChange={(e) => setWhatsAppConfig({ ...whatsAppConfig, sessionName: e.target.value })}
-                          className="h-9 text-xs font-mono"
-                        />
-                        <p className="text-[11px] text-muted-foreground">
-                          Active WhatsApp session name registered on the automation server.
-                        </p>
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <Label className="text-xs font-medium">Sender Number (Optional)</Label>
-                        <Input
-                          placeholder="e.g. 919876543210"
-                          value={whatsAppConfig.senderNumber}
-                          onChange={(e) => setWhatsAppConfig({ ...whatsAppConfig, senderNumber: e.target.value })}
-                          className="h-9 text-xs font-mono"
-                        />
-                        <p className="text-[11px] text-muted-foreground">
-                          Linked sender WhatsApp number (digits with country code).
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="pt-2 border-t border-border/60 space-y-2.5">
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          id="waCustomerToggle"
-                          checked={whatsAppConfig.enableCustomerAlerts}
-                          onChange={(e) => setWhatsAppConfig({ ...whatsAppConfig, enableCustomerAlerts: e.target.checked })}
-                          className="rounded text-primary focus:ring-primary w-4 h-4"
-                        />
-                        <Label htmlFor="waCustomerToggle" className="text-xs font-medium cursor-pointer">
-                          Enable Consumer WhatsApp Notifications (Ticket creation, Technician en route, OTP, Invoices)
-                        </Label>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          id="waStaffToggle"
-                          checked={whatsAppConfig.enableStaffAlerts}
-                          onChange={(e) => setWhatsAppConfig({ ...whatsAppConfig, enableStaffAlerts: e.target.checked })}
-                          className="rounded text-primary focus:ring-primary w-4 h-4"
-                        />
-                        <Label htmlFor="waStaffToggle" className="text-xs font-medium cursor-pointer">
-                          Enable Field Staff WhatsApp Alerts (Immediate job dispatch notifications to engineers)
-                        </Label>
-                      </div>
-                    </div>
-
-                    <div className="pt-2 border-t border-border/60 flex items-center justify-between">
-                      <Button type="submit" size="sm" disabled={savingWhatsApp} className="text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white">
-                        {savingWhatsApp ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : null}
-                        Save WhatsApp Gateway Settings
-                      </Button>
-                    </div>
-                  </form>
                 </CardContent>
               </Card>
 
@@ -795,10 +853,10 @@ export const OrganizationPage: React.FC = () => {
                 <CardHeader>
                   <CardTitle className="text-xs font-bold font-poppins text-ink flex items-center gap-2">
                     <Send className="w-3.5 h-3.5 text-emerald-600" />
-                    Dispatch Test WhatsApp Message
+                    Verify WhatsApp Delivery (Test Dispatch)
                   </CardTitle>
                   <p className="text-xs text-muted-foreground">
-                    Send an instantaneous WhatsApp message to any phone number to verify gateway routing and delivery.
+                    Send an instantaneous test WhatsApp message to any phone number to verify routing and companion line health.
                   </p>
                 </CardHeader>
                 <CardContent className="space-y-3.5">
@@ -860,6 +918,106 @@ export const OrganizationPage: React.FC = () => {
                   )}
                 </CardContent>
               </Card>
+
+              {/* QR PAIRING MODAL */}
+              {showQrModal && (
+                <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
+                  <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-md w-full p-8 text-center space-y-6 animate-in fade-in zoom-in-95 duration-150 relative">
+                    <button
+                      type="button"
+                      onClick={() => setShowQrModal(false)}
+                      className="absolute top-5 right-5 text-slate-400 hover:text-slate-600 p-1 rounded-full hover:bg-slate-100 transition"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+
+                    <div>
+                      <h4 className="text-xl font-bold text-slate-900 font-poppins">Pair WhatsApp Web</h4>
+                      <p className="text-xs text-slate-500 mt-1">
+                        Operational Line: <span className="font-semibold text-slate-700">{whatsAppStatus.instanceName}</span>
+                      </p>
+                    </div>
+
+                    {qrConnected ? (
+                      <div className="py-8 space-y-4">
+                        <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-inner">
+                          <CheckCircle2 className="w-10 h-10" />
+                        </div>
+                        <h5 className="text-lg font-bold text-emerald-800">Successfully Connected!</h5>
+                        <p className="text-xs text-slate-500">
+                          Your WhatsApp operational line is now linked and persistent.
+                        </p>
+                        <Button
+                          type="button"
+                          onClick={() => setShowQrModal(false)}
+                          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 text-xs rounded-xl"
+                        >
+                          Done
+                        </Button>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 inline-block mx-auto shadow-inner">
+                          {qrLoading ? (
+                            <div className="w-56 h-56 flex flex-col items-center justify-center text-slate-400 gap-2">
+                              <RefreshCw className="w-8 h-8 animate-spin text-emerald-500" />
+                              <span className="text-xs font-poppins">Requesting Pairing Session...</span>
+                            </div>
+                          ) : qrCodeData ? (
+                            <img
+                              src={qrCodeData.startsWith('data:') ? qrCodeData : `data:image/png;base64,${qrCodeData}`}
+                              alt="WhatsApp Pairing QR"
+                              className="w-56 h-56 object-contain rounded-lg shadow-xs"
+                            />
+                          ) : (
+                            <div className="w-56 h-56 flex flex-col items-center justify-center text-slate-400 gap-2">
+                              <RefreshCw className="w-8 h-8 animate-spin text-emerald-500" />
+                              <span className="text-xs">Generating Pairing QR...</span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="text-left text-xs text-slate-600 space-y-2 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                          <div className="font-semibold text-slate-800 mb-1">To Link Your Phone:</div>
+                          <div className="flex items-center gap-2">
+                            <span className="w-4 h-4 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px] shrink-0 font-bold">1</span>
+                            <span>Open WhatsApp on your mobile phone</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="w-4 h-4 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px] shrink-0 font-bold">2</span>
+                            <span>Tap <b>Menu (⋮)</b> or <b>Settings</b> &rarr; <b>Linked Devices</b></span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="w-4 h-4 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px] shrink-0 font-bold">3</span>
+                            <span>Tap <b>Link a Device</b> and point camera at this QR code</span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            onClick={handleOpenPairingModal}
+                            disabled={qrLoading}
+                            variant="outline"
+                            className="w-1/2 text-xs font-semibold"
+                          >
+                            <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${qrLoading ? 'animate-spin' : ''}`} />
+                            Refresh QR
+                          </Button>
+                          <Button
+                            type="button"
+                            onClick={() => setShowQrModal(false)}
+                            variant="ghost"
+                            className="w-1/2 text-xs font-semibold text-slate-600 hover:text-slate-800"
+                          >
+                            Close
+                          </Button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

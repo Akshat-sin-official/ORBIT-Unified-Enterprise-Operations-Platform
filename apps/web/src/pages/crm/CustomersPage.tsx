@@ -30,7 +30,9 @@ import {
   Loader2,
   Calendar,
   Eye,
+  FileSpreadsheet,
 } from 'lucide-react';
+import { ExcelImportModal, ColumnDefinition } from '@/components/common/ExcelImportModal';
 
 interface CustomerAddress {
   id: string;
@@ -111,6 +113,7 @@ export const CustomersPage: React.FC = () => {
 
   // New Customer Dialog
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [isExcelImportOpen, setIsExcelImportOpen] = useState(false);
   const [createForm, setCreateForm] = useState({
     name: '',
     email: '',
@@ -124,6 +127,48 @@ export const CustomersPage: React.FC = () => {
     notes: '',
   });
   const [createSubmitting, setCreateSubmitting] = useState(false);
+
+  const customerImportColumns: ColumnDefinition[] = [
+    { key: 'name', label: 'Full Name', required: true, example: 'Aarav Patel' },
+    { key: 'phone', label: 'Phone Number', required: true, example: '+919876543210' },
+    { key: 'email', label: 'Email Address', example: 'aarav.patel@example.com' },
+    { key: 'companyName', label: 'Company Name', example: 'Patel Enterprises Ltd' },
+    { key: 'type', label: 'Customer Type', example: 'INDIVIDUAL' },
+    { key: 'street', label: 'Street Address', example: '123 Residency Road' },
+    { key: 'city', label: 'City', example: 'Bengaluru' },
+    { key: 'state', label: 'State', example: 'Karnataka' },
+    { key: 'postalCode', label: 'Postal Code', example: '560001' },
+    { key: 'notes', label: 'Account Notes', example: 'Key Enterprise account' },
+  ];
+
+  const handleBulkImportCustomers = async (rows: Record<string, any>[]) => {
+    for (const row of rows) {
+      if (!row.name || !row.phone) continue;
+      const payload: any = {
+        name: String(row.name),
+        phone: String(row.phone),
+        email: row.email ? String(row.email) : undefined,
+        companyName: row.companyName ? String(row.companyName) : undefined,
+        type: (row.type?.toUpperCase() === 'ENTERPRISE' || row.type?.toUpperCase() === 'RETAIL')
+          ? row.type.toUpperCase()
+          : 'INDIVIDUAL',
+        notes: row.notes ? String(row.notes) : undefined,
+      };
+
+      if (row.street && row.city) {
+        payload.address = {
+          street: String(row.street),
+          city: String(row.city),
+          state: row.state ? String(row.state) : 'State',
+          postalCode: row.postalCode ? String(row.postalCode) : '000000',
+          country: 'India',
+        };
+      }
+
+      await api.post('/crm/customers', payload);
+    }
+    await fetchCustomers();
+  };
 
   // New Interaction Form inside Drawer
   const [interactionSubject, setInteractionSubject] = useState('');
@@ -244,13 +289,23 @@ export const CustomersPage: React.FC = () => {
             Maintain customer master accounts, service site addresses, and registered hardware assets.
           </p>
         </div>
-        <Button
-          onClick={() => setCreateDialogOpen(true)}
-          className="bg-primary hover:bg-primary-hover text-white shadow-sm flex items-center gap-2"
-        >
-          <Plus className="w-4 h-4" />
-          Add Customer
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setIsExcelImportOpen(true)}
+            className="border-border text-ink hover:bg-zinc-100 flex items-center gap-2 shadow-2xs"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+            Import Excel
+          </Button>
+          <Button
+            onClick={() => setCreateDialogOpen(true)}
+            className="bg-primary hover:bg-primary-hover text-white shadow-sm flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            Add Customer
+          </Button>
+        </div>
       </div>
 
       {/* Summary KPI Cards */}
@@ -841,6 +896,16 @@ export const CustomersPage: React.FC = () => {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Bulk Excel Importer */}
+      <ExcelImportModal
+        isOpen={isExcelImportOpen}
+        onClose={() => setIsExcelImportOpen(false)}
+        title="Upload & Populate Customers"
+        entityName="Customers"
+        columns={customerImportColumns}
+        onImport={handleBulkImportCustomers}
+      />
     </div>
   );
 };

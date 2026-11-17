@@ -22,7 +22,9 @@ import {
   Search,
   Shield,
   Briefcase,
+  FileSpreadsheet,
 } from 'lucide-react';
+import { ExcelImportModal, ColumnDefinition } from '@/components/common/ExcelImportModal';
 
 export const UsersPage: React.FC = () => {
   const [users, setUsers] = useState<any[]>([]);
@@ -31,6 +33,35 @@ export const UsersPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isExcelImportOpen, setIsExcelImportOpen] = useState(false);
+
+  const userImportColumns: ColumnDefinition[] = [
+    { key: 'firstName', label: 'First Name', required: true, example: 'Vikram' },
+    { key: 'lastName', label: 'Last Name', example: 'Sharma' },
+    { key: 'email', label: 'Corporate Email', required: true, example: 'vikram.s@orbit.local' },
+    { key: 'password', label: 'Initial Password', example: 'Orbit@1234' },
+    { key: 'phone', label: 'Phone Number', example: '+919876543210' },
+    { key: 'designation', label: 'Designation / Title', example: 'Lead Field Engineer' },
+    { key: 'employeeCode', label: 'Employee Code', example: 'EMP-088' },
+    { key: 'roleName', label: 'Assigned Role', example: 'Field Technician' },
+  ];
+
+  const handleBulkImportUsers = async (rows: Record<string, any>[]) => {
+    for (const row of rows) {
+      if (!row.firstName || !row.email) continue;
+      await api.post('/identity/users', {
+        firstName: String(row.firstName),
+        lastName: row.lastName ? String(row.lastName) : '',
+        email: String(row.email).toLowerCase().trim(),
+        password: row.password ? String(row.password) : 'Orbit@1234',
+        phone: row.phone ? String(row.phone) : undefined,
+        designation: row.designation ? String(row.designation) : undefined,
+        employeeCode: row.employeeCode ? String(row.employeeCode) : undefined,
+        roleNames: [row.roleName ? String(row.roleName) : 'Support Agent'],
+      });
+    }
+    await fetchUsers();
+  };
 
   // Form state
   const [formData, setFormData] = useState({
@@ -140,10 +171,20 @@ export const UsersPage: React.FC = () => {
           </p>
         </div>
 
-        <Button onClick={() => setIsDialogOpen(true)} className="sm:self-start">
-          <UserPlus className="w-4 h-4 mr-2" />
-          Add Member
-        </Button>
+        <div className="flex items-center gap-2 sm:self-start">
+          <Button
+            variant="outline"
+            onClick={() => setIsExcelImportOpen(true)}
+            className="border-border text-ink hover:bg-zinc-100 flex items-center gap-2 shadow-2xs"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+            Import Excel
+          </Button>
+          <Button onClick={() => setIsDialogOpen(true)}>
+            <UserPlus className="w-4 h-4 mr-2" />
+            Add Member
+          </Button>
+        </div>
       </div>
 
       {/* Filter Card */}
@@ -373,6 +414,16 @@ export const UsersPage: React.FC = () => {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Bulk Excel Importer */}
+      <ExcelImportModal
+        isOpen={isExcelImportOpen}
+        onClose={() => setIsExcelImportOpen(false)}
+        title="Upload & Populate Team Members"
+        entityName="Users"
+        columns={userImportColumns}
+        onImport={handleBulkImportUsers}
+      />
     </div>
   );
 };

@@ -25,7 +25,9 @@ import {
   Loader2,
   Tag,
   ShieldCheck,
+  FileSpreadsheet,
 } from 'lucide-react';
+import { ExcelImportModal, ColumnDefinition } from '@/components/common/ExcelImportModal';
 
 interface Category {
   id: string;
@@ -89,6 +91,29 @@ export const ProductsPage: React.FC = () => {
   });
   const [registerSubmitting, setRegisterSubmitting] = useState(false);
   const [registrationSuccess, setRegistrationSuccess] = useState<any>(null);
+  const [isExcelImportOpen, setIsExcelImportOpen] = useState(false);
+
+  const productImportColumns: ColumnDefinition[] = [
+    { key: 'sku', label: 'SKU Code', required: true, example: 'ORBIT-TAB-12' },
+    { key: 'name', label: 'Product Name', required: true, example: 'ORBIT Pro Tablet 12"' },
+    { key: 'modelNumber', label: 'Model Number', example: 'OPT-12-PRO' },
+    { key: 'defaultWarrantyMonths', label: 'Warranty Months', example: 12 },
+    { key: 'description', label: 'Description', example: '12-inch 2K tablet for field technicians' },
+  ];
+
+  const handleBulkImportProducts = async (rows: Record<string, any>[]) => {
+    for (const row of rows) {
+      if (!row.sku || !row.name) continue;
+      await api.post('/crm/products', {
+        sku: String(row.sku),
+        name: String(row.name),
+        modelNumber: row.modelNumber ? String(row.modelNumber) : undefined,
+        defaultWarrantyMonths: Number(row.defaultWarrantyMonths) || 12,
+        description: row.description ? String(row.description) : undefined,
+      });
+    }
+    await fetchData();
+  };
 
   const fetchData = async () => {
     try {
@@ -197,6 +222,14 @@ export const ProductsPage: React.FC = () => {
           </p>
         </div>
         <div className="flex items-center gap-2.5">
+          <Button
+            variant="outline"
+            onClick={() => setIsExcelImportOpen(true)}
+            className="border-border text-ink hover:bg-zinc-100 flex items-center gap-2 shadow-2xs"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+            Import Excel
+          </Button>
           <Button
             variant="outline"
             onClick={() => {
@@ -648,6 +681,16 @@ export const ProductsPage: React.FC = () => {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Bulk Excel Importer */}
+      <ExcelImportModal
+        isOpen={isExcelImportOpen}
+        onClose={() => setIsExcelImportOpen(false)}
+        title="Upload & Populate Product Catalog"
+        entityName="Products"
+        columns={productImportColumns}
+        onImport={handleBulkImportProducts}
+      />
     </div>
   );
 };

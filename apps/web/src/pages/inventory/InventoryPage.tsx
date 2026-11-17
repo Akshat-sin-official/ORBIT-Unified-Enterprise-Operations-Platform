@@ -33,7 +33,9 @@ import {
   MapPin,
   Barcode,
   History,
+  FileSpreadsheet,
 } from 'lucide-react';
+import { ExcelImportModal, ColumnDefinition } from '@/components/common/ExcelImportModal';
 
 interface Warehouse {
   id: string;
@@ -266,6 +268,36 @@ export const InventoryPage: React.FC = () => {
   });
 
   // Handle Goods Receipt (GRN)
+  const [isExcelImportOpen, setIsExcelImportOpen] = useState(false);
+
+  const partImportColumns: ColumnDefinition[] = [
+    { key: 'partNumber', label: 'Part SKU Code', required: true, example: 'PANEL-4K-16' },
+    { key: 'name', label: 'Part Name', required: true, example: '16-inch 4K IPS Display Panel' },
+    { key: 'costPrice', label: 'Unit Cost (₹)', required: true, example: 3500 },
+    { key: 'retailPrice', label: 'Selling Price (₹)', required: true, example: 5200 },
+    { key: 'minSafetyStock', label: 'Min Safety Buffer', example: 10 },
+    { key: 'compatibleModels', label: 'Compatible Models', example: 'OPT-16-PRO, OPT-16-ULTRA' },
+  ];
+
+  const handleBulkImportParts = async (rows: Record<string, any>[]) => {
+    for (const row of rows) {
+      if (!row.partNumber || !row.name) continue;
+      const models = row.compatibleModels
+        ? String(row.compatibleModels).split(',').map((s) => s.trim()).filter(Boolean)
+        : [];
+      await api.post('/inventory/parts', {
+        partNumber: String(row.partNumber).toUpperCase().trim(),
+        name: String(row.name).trim(),
+        costPrice: Number(row.costPrice) || 0,
+        retailPrice: Number(row.retailPrice) || 0,
+        minSafetyStock: Number(row.minSafetyStock) || 5,
+        isSerialTracked: false,
+        compatibleModels: models,
+      });
+    }
+    await fetchData();
+  };
+
   const handleReceiveStock = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -415,6 +447,16 @@ export const InventoryPage: React.FC = () => {
           >
             <ArrowRightLeft className="w-3.5 h-3.5 mr-1.5 text-primary" />
             Inter-Hub Transfer
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsExcelImportOpen(true)}
+            className="text-xs font-medium border-border/80 bg-white hover:bg-zinc-50 text-ink shadow-2xs"
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5 mr-1.5 text-emerald-600" />
+            Import Excel
           </Button>
 
           <Button
@@ -1367,6 +1409,16 @@ export const InventoryPage: React.FC = () => {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Bulk Excel Importer */}
+      <ExcelImportModal
+        isOpen={isExcelImportOpen}
+        onClose={() => setIsExcelImportOpen(false)}
+        title="Upload & Populate Spare Parts Master"
+        entityName="Spare Parts"
+        columns={partImportColumns}
+        onImport={handleBulkImportParts}
+      />
     </div>
   );
 };

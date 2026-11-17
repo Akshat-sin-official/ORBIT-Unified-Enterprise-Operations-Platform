@@ -225,7 +225,7 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
               variant="outline"
               size="sm"
               onClick={downloadTemplate}
-              className="text-xs font-semibold gap-1.5 h-8 bg-zinc-50 hover:bg-zinc-100 text-ink shadow-2xs"
+              className="text-xs font-semibold gap-1.5 h-8 bg-zinc-50 hover:bg-zinc-100 text-ink shadow-2xs mr-1"
             >
               <Download className="w-3.5 h-3.5 text-muted-foreground" />
               Download Template

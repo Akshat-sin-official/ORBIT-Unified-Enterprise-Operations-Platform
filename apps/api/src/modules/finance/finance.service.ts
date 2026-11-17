@@ -1,12 +1,16 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../infrastructure/database/prisma.service';
+import { WhatsAppService } from '../whatsapp/whatsapp.service';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
 import { RecordPaymentDto } from './dto/record-payment.dto';
 import { InvoiceStatus, PaymentMethod, PaymentStatus, Prisma } from '@prisma/client';
 
 @Injectable()
 export class FinanceService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly whatsAppService: WhatsAppService,
+  ) {}
 
   // ─── Invoices ──────────────────────────────────────────────────────────────
 
@@ -147,7 +151,7 @@ export class FinanceService {
     const totalAmount = subtotal + taxAmount;
     const balanceDue = totalAmount;
 
-    return this.prisma.invoice.create({
+    const createdInvoice = await this.prisma.invoice.create({
       data: {
         organizationId,
         invoiceNumber,
@@ -170,6 +174,20 @@ export class FinanceService {
         items: true,
       },
     });
+
+    if (createdInvoice.customer?.phone) {
+      this.whatsAppService
+        .notifyCustomerInvoice(organizationId, {
+          customerName: createdInvoice.customer.name,
+          customerPhone: createdInvoice.customer.phone,
+          invoiceNumber: createdInvoice.invoiceNumber,
+          totalAmount: Number(createdInvoice.totalAmount),
+          isWarrantyCovered: createdInvoice.status === InvoiceStatus.WARRANTY_ABSORBED,
+        })
+        .catch(() => {});
+    }
+
+    return createdInvoice;
   }
 
   // ─── Record Payment ────────────────────────────────────────────────────────

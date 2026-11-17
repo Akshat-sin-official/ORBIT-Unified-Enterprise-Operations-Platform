@@ -124,11 +124,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
               </span>
             </div>
           </div>
-
-          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200/80 font-mono text-[10.5px] font-semibold">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            <span>M1–M9 Telemetry Active</span>
-          </div>
         </div>
 
         {/* Hero Content with Elevated Typography */}
@@ -204,24 +199,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
 
       {/* Right Panel - Login & 1-Click Persona Profiles */}
       <div className="flex flex-col h-screen overflow-hidden bg-[#FAF9F6] relative">
-        {/* Top Status Bar */}
-        <div className="flex items-center justify-between p-6 lg:p-8 shrink-0 bg-[#FAF9F6] z-20 w-full">
-          <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 font-mono">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              Backend Services Online
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2 px-3 py-1 bg-white rounded-full border border-border/70 shadow-2xs text-[11px] font-mono text-muted-foreground">
-            <span className="text-ink font-semibold">PostgreSQL 16</span>
-            <span className="text-border">•</span>
-            <span>Redis 7</span>
-          </div>
-        </div>
-
         {/* Scrollable Form Body */}
-        <div className="flex-1 overflow-y-auto px-6 pb-12 flex flex-col items-center justify-center">
+        <div className="flex-1 overflow-y-auto px-6 py-12 flex flex-col items-center justify-center">
           <div className="w-full max-w-[420px] my-auto space-y-6 animate-fade-in">
             {/* Header Lockup with Logo */}
             <div className="flex flex-col space-y-2 text-center lg:text-left">

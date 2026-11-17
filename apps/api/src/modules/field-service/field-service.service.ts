@@ -4,6 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../infrastructure/database/prisma.service';
+import { WhatsAppService } from '../whatsapp/whatsapp.service';
 import {
   CreateWorkOrderDto,
   AssignWorkOrderDto,
@@ -21,7 +22,10 @@ import {
 
 @Injectable()
 export class FieldServiceService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly whatsAppService: WhatsAppService,
+  ) {}
 
   // ─── Work Orders ───────────────────────────────────────────────────────────
 
@@ -210,6 +214,37 @@ export class FieldServiceService {
         },
       });
 
+      // WhatsApp notifications for field assignment and customer confirmation
+      if (workOrder.technician?.user?.phone) {
+        this.whatsAppService
+          .notifyTechAssigned(organizationId, {
+            techName: `${workOrder.technician.user.firstName} ${workOrder.technician.user.lastName}`,
+            techPhone: workOrder.technician.user.phone,
+            workOrderNumber: workOrder.workOrderNumber,
+            customerName: customer.name,
+            customerPhone: customer.phone,
+            address: customer.addresses?.[0]?.street || 'Customer site',
+            city: customer.addresses?.[0]?.city || '',
+            title: workOrder.title,
+          })
+          .catch(() => {});
+      }
+
+      if (customer.phone && dto.technicianId) {
+        this.whatsAppService
+          .notifyCustomerTechnicianDispatched(organizationId, {
+            customerName: customer.name,
+            customerPhone: customer.phone,
+            techName: workOrder.technician
+              ? `${workOrder.technician.user.firstName} ${workOrder.technician.user.lastName}`
+              : 'Assigned Field Engineer',
+            techPhone: workOrder.technician?.user?.phone || '',
+            workOrderNumber: workOrder.workOrderNumber,
+            timeSlot: workOrder.timeSlot || undefined,
+          })
+          .catch(() => {});
+      }
+
       return workOrder;
     });
   }
@@ -354,6 +389,35 @@ export class FieldServiceService {
         },
       });
 
+      // WhatsApp notifications to assigned technician and customer
+      if (tech.user.phone) {
+        this.whatsAppService
+          .notifyTechAssigned(organizationId, {
+            techName: `${tech.user.firstName} ${tech.user.lastName}`,
+            techPhone: tech.user.phone,
+            workOrderNumber: wo.workOrderNumber,
+            customerName: wo.customer.name,
+            customerPhone: wo.customer.phone,
+            address: wo.customerAddress?.street || wo.customer.addresses?.[0]?.street || 'Customer site',
+            city: wo.customerAddress?.city || wo.customer.addresses?.[0]?.city || '',
+            title: wo.title,
+          })
+          .catch(() => {});
+      }
+
+      if (wo.customer.phone) {
+        this.whatsAppService
+          .notifyCustomerTechnicianDispatched(organizationId, {
+            customerName: wo.customer.name,
+            customerPhone: wo.customer.phone,
+            techName: `${tech.user.firstName} ${tech.user.lastName}`,
+            techPhone: tech.user.phone || '',
+            workOrderNumber: wo.workOrderNumber,
+            timeSlot: updated.timeSlot || undefined,
+          })
+          .catch(() => {});
+      }
+
       return updated;
     });
   }
@@ -429,6 +493,29 @@ export class FieldServiceService {
           notes: dto.notes || `Transitioned status from ${fromStatus} to ${toStatus}`,
         },
       });
+
+      // Contextual WhatsApp alerts for status progression
+      if (toStatus === WorkOrderStatus.REPAIRED && wo.customer?.phone && wo.customerOtp) {
+        this.whatsAppService
+          .notifyCustomerOtp(organizationId, {
+            customerName: wo.customer.name,
+            customerPhone: wo.customer.phone,
+            otpCode: wo.customerOtp,
+            workOrderNumber: wo.workOrderNumber,
+          })
+          .catch(() => {});
+      } else if (toStatus === WorkOrderStatus.TRAVELING && wo.customer?.phone) {
+        this.whatsAppService
+          .notifyCustomerTechnicianDispatched(organizationId, {
+            customerName: wo.customer.name,
+            customerPhone: wo.customer.phone,
+            techName: wo.technician ? `${wo.technician.user.firstName} ${wo.technician.user.lastName}` : 'Field Engineer',
+            techPhone: wo.technician?.user?.phone || '',
+            workOrderNumber: wo.workOrderNumber,
+            timeSlot: wo.timeSlot || undefined,
+          })
+          .catch(() => {});
+      }
 
       return updated;
     });

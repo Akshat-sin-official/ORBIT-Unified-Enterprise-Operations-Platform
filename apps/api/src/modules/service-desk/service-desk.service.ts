@@ -4,6 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../infrastructure/database/prisma.service';
+import { WhatsAppService } from '../whatsapp/whatsapp.service';
 import { CreateTicketDto } from './dto/create-ticket.dto';
 import { UpdateTicketDto } from './dto/update-ticket.dto';
 import { ChangeTicketStatusDto } from './dto/change-ticket-status.dto';
@@ -14,7 +15,10 @@ import { TicketPriority, TicketStatus, Prisma } from '@prisma/client';
 
 @Injectable()
 export class ServiceDeskService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly whatsAppService: WhatsAppService,
+  ) {}
 
   // ─── Tickets ───────────────────────────────────────────────────────────────
 
@@ -274,6 +278,19 @@ export class ServiceDeskService {
           reason: `Ticket opened via ${dto.source || 'PORTAL'}`,
         },
       });
+
+      // WhatsApp notification to customer
+      if (customer.phone) {
+        this.whatsAppService
+          .notifyTicketCreated(organizationId, {
+            customerName: customer.name,
+            customerPhone: customer.phone,
+            ticketNumber: ticket.ticketNumber,
+            title: ticket.title,
+            priority: ticket.priority,
+          })
+          .catch(() => {});
+      }
 
       return ticket;
     });

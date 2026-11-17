@@ -15,6 +15,7 @@ import { LogisticsModule } from './modules/logistics/logistics.module';
 import { FinanceModule } from './modules/finance/finance.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { SmtpModule } from './modules/smtp/smtp.module';
+import { WhatsAppModule } from './modules/whatsapp/whatsapp.module';
 import { CopilotModule } from './modules/copilot/copilot.module';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 
@@ -38,6 +39,7 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
     FinanceModule,
     AnalyticsModule,
     SmtpModule,
+    WhatsAppModule,
     CopilotModule,
   ],
   providers: [

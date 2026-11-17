@@ -382,18 +382,9 @@ export const InventoryPage: React.FC = () => {
 
   return (
     <div className="p-8 space-y-6 max-w-[1600px] mx-auto">
-      {/* Top Banner / Breadcrumb & Actions */}
+      {/* Top Banner & Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs font-mono uppercase tracking-wider text-muted-foreground">
-              SUPPLY & LOGISTICS
-            </span>
-            <span className="text-muted-foreground/40">•</span>
-            <Badge variant="outline" className="font-mono text-[10px] bg-white text-ink border-border">
-              MILESTONE 5 ACTIVE
-            </Badge>
-          </div>
           <h1 className="text-2xl font-bold font-poppins text-ink tracking-tight flex items-center gap-2.5">
             <Boxes className="w-6 h-6 text-primary stroke-[2.2]" />
             Inventory & Regional Warehouses

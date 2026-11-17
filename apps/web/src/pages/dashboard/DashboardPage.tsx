@@ -186,25 +186,9 @@ export const DashboardPage: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 animate-fade-in">
-      {/* Dynamic Persona Welcome Header */}
+      {/* Persona Welcome Header */}
       <div className="bg-white rounded-2xl border border-border/70 p-6 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-5 relative overflow-hidden">
         <div className="space-y-1.5 relative z-10">
-          <div className="flex items-center gap-2.5">
-            <div className="h-7 w-auto bg-[#FAF9F6] border border-border/70 px-2 py-0.5 rounded-lg flex items-center justify-center shrink-0 shadow-2xs">
-              <img
-                src="/orbit-logo.png"
-                alt="ORBIT"
-                className="h-5 w-auto object-contain mix-blend-multiply"
-              />
-            </div>
-            <Badge variant="outline" className="font-mono text-[10px] font-bold bg-primary/5 text-primary border-primary/20 py-0 px-2">
-              Role: {user?.roles?.[0] || 'Operator'}
-            </Badge>
-            <span className="text-[11px] text-muted-foreground font-mono">
-              {user?.organizationName} • RBAC Verified
-            </span>
-          </div>
-
           <h1 className="text-2xl sm:text-3xl font-black font-poppins text-ink tracking-[-0.03em] leading-tight">
             {isTech && `Field Technician Console — Welcome, ${user?.firstName}`}
             {isSupport && `Service Desk Command — Welcome, ${user?.firstName}`}

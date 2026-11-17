@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -141,8 +141,8 @@ export const AppLayout: React.FC = () => {
         {/* Top Org Branding */}
         <div>
           <div className="p-3.5 border-b border-border/70 bg-white">
-            <div className="flex items-center gap-2.5">
-              <div className="h-9 w-auto bg-[#FAF9F6] border border-border/80 px-2 py-1 rounded-xl flex items-center justify-center shrink-0 shadow-2xs">
+            <Link to="/dashboard" className="flex items-center gap-2.5">
+              <div className="h-9 w-auto bg-[#FAF9F6] border border-border/80 px-2.5 py-1 rounded-xl flex items-center justify-center shrink-0 shadow-2xs hover:border-border transition-colors">
                 <img
                   src="/orbit-logo.png"
                   alt="ORBIT"
@@ -151,13 +151,10 @@ export const AppLayout: React.FC = () => {
               </div>
               <div className="flex flex-col min-w-0">
                 <span className="font-extrabold font-poppins text-xs tracking-tight text-ink truncate">
-                  {user?.organizationName || 'ORBIT Operations'}
-                </span>
-                <span className="text-[10px] font-mono text-muted-foreground truncate">
-                  {user?.organizationSlug || 'tenant-active'}
+                  {user?.organizationName || 'Operations'}
                 </span>
               </div>
-            </div>
+            </Link>
           </div>
 
           {/* Nav Items */}
@@ -246,10 +243,10 @@ export const AppLayout: React.FC = () => {
         {/* Top Header Bar */}
         <header className="h-14 border-b border-border/70 bg-white px-6 flex items-center justify-between shrink-0 shadow-2xs">
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-              <span className="font-poppins font-bold text-ink">ORBIT Ops</span>
-              <span>/</span>
-              <span className="capitalize">{window.location.pathname.replace('/', '').replace('-', ' ') || 'Dashboard'}</span>
+            <div className="flex items-center gap-2 text-xs font-medium text-ink">
+              <span className="font-poppins font-bold text-ink capitalize text-sm">
+                {window.location.pathname.split('/').filter(Boolean).pop()?.replace(/-/g, ' ') || 'Dashboard'}
+              </span>
             </div>
 
             {/* Global Command Palette Trigger */}
@@ -296,11 +293,6 @@ export const AppLayout: React.FC = () => {
             </a>
 
             <div className="h-4 w-px bg-border/60" />
-
-            <Badge variant="success">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              API Connected
-            </Badge>
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

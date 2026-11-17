@@ -96,15 +96,6 @@ export const AnalyticsPage: React.FC = () => {
       {/* Top Banner & Title */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs font-mono uppercase tracking-wider text-muted-foreground">
-              EXECUTIVE INTELLIGENCE
-            </span>
-            <span className="text-muted-foreground/40">•</span>
-            <Badge variant="outline" className="font-mono text-[10px] bg-white text-ink border-border">
-              MILESTONE 8 ACTIVE
-            </Badge>
-          </div>
           <h1 className="text-2xl font-bold font-poppins text-ink tracking-tight flex items-center gap-2.5">
             <BarChart3 className="w-6 h-6 text-primary stroke-[2.2]" />
             Operational KPIs & Executive Cockpit

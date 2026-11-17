@@ -362,7 +362,7 @@ Select an operational action below or type any command:`,
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="font-poppins font-bold text-sm text-ink tracking-tight">
-                  ORBIT Operations Copilot
+                  Operations Copilot
                 </h2>
                 <Badge
                   variant="outline"
@@ -379,7 +379,7 @@ Select an operational action below or type any command:`,
                 </span>
                 <span>•</span>
                 <span className="truncate max-w-[220px]">
-                  {user?.organizationName || 'Enterprise Context'}
+                  {user?.organizationName || 'Enterprise'}
                 </span>
               </div>
             </div>
@@ -719,12 +719,9 @@ Select an operational action below or type any command:`,
             </div>
           </div>
 
-          <div className="flex items-center justify-between text-[10px] text-muted-foreground mt-2 px-1">
-            <span className="flex items-center gap-1">
-              <ShieldCheck className="w-3 h-3 text-emerald-600" />
-              Tenant Isolated • Organization Scoped
-            </span>
-            <span className="font-mono text-[9.5px]">ORBIT v1.0 Enterprise</span>
+          <div className="flex items-center justify-between text-[10.5px] text-muted-foreground mt-2 px-1">
+            <span>Press Enter to send</span>
+            <span className="font-mono text-[9.5px]">Shift + Enter for new line</span>
           </div>
         </div>
       </div>

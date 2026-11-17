@@ -191,15 +191,6 @@ export const OrganizationPage: React.FC = () => {
     <div className="max-w-5xl mx-auto space-y-6 animate-fade-in p-6">
       {/* Page Header */}
       <div>
-        <div className="flex items-center gap-2 mb-1">
-          <span className="text-xs font-mono uppercase tracking-wider text-muted-foreground">
-            ADMINISTRATION & TENANCY
-          </span>
-          <span className="text-muted-foreground/40">•</span>
-          <Badge variant="outline" className="font-mono text-[10px] bg-white text-ink border-border">
-            TENANT CONFIG
-          </Badge>
-        </div>
         <h1 className="text-2xl font-extrabold font-poppins tracking-tight text-ink">
           Workspace Profile & Integrations
         </h1>

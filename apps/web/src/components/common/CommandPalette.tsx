@@ -407,7 +407,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             <span>↵ to select</span>
             <span>ESC to dismiss</span>
           </div>
-          <span className="font-mono text-[10px]">ORBIT QuickCommand</span>
+          <span className="font-mono text-[10px]">QuickCommand</span>
         </div>
       </div>
     </div>

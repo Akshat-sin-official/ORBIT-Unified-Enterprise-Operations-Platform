@@ -120,7 +120,7 @@ export const ShortcutsHelpModal: React.FC<ShortcutsHelpModalProps> = ({
 
         <div className="pt-3 border-t border-border/70 flex items-center justify-between text-xs text-muted-foreground">
           <span>Press <kbd className="px-1 py-0.5 rounded font-mono text-[10px] bg-zinc-100 border border-zinc-300">Esc</kbd> anytime to close</span>
-          <span className="font-mono text-[10.5px]">ORBIT Hotkeys v1.0</span>
+          <span className="font-mono text-[10.5px]">Hotkeys</span>
         </div>
       </DialogContent>
     </Dialog>

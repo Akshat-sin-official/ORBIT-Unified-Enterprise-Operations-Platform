@@ -16,10 +16,14 @@ import {
 import { RegisterProductDto } from './dto/register-product.dto';
 import { CreateCustomerInteractionDto } from './dto/create-interaction.dto';
 import { WarrantyCoverageType, WarrantyStatus, Prisma } from '@prisma/client';
+import { NotificationService } from '../notifications/notifications.service';
 
 @Injectable()
 export class CrmService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationService: NotificationService,
+  ) {}
 
   // ─── Customers ─────────────────────────────────────────────────────────────
 
@@ -349,7 +353,7 @@ export class CrmService {
     const warrantyNumber = `WAR-${trimmedSerial}`;
 
     // 5. Execute registration in a transaction
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       // Upsert ProductSerialNumber record to mark isRegistered = true
       await tx.productSerialNumber.upsert({
         where: {
@@ -407,6 +411,25 @@ export class CrmService {
         customer,
       };
     });
+
+    this.notificationService
+      .dispatch(organizationId, {
+        category: 'WARRANTY_CLAIM_UPDATED',
+        title: `Warranty Certificate Issued: ${result.warranty.warrantyNumber}`,
+        message: `Your product ${result.product.name} (S/N: ${result.registration.serialNumber}) is registered under ${result.warranty.coverageType} warranty valid through ${new Date(result.warranty.endDate).toLocaleDateString()}.`,
+        customerName: result.customer.name,
+        customerEmail: result.customer.email,
+        customerPhone: result.customer.phone || undefined,
+        metadata: {
+          warrantyNumber: result.warranty.warrantyNumber,
+          serialNumber: result.registration.serialNumber,
+          product: result.product.name,
+          validUntil: new Date(result.warranty.endDate).toLocaleDateString(),
+        },
+      })
+      .catch(() => {});
+
+    return result;
   }
 
   async checkWarranty(organizationId: string, serialNumber: string) {

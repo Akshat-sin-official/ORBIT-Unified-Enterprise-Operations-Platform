@@ -70,6 +70,8 @@ model Organization {
   smtpConfig           SmtpConfig?
   whatsAppConfig       WhatsAppConfig?
   geminiApiKey         String?        @map("gemini_api_key")
+  notificationSettings NotificationSetting[]
+  inAppNotifications   InAppNotification[]
 
   @@index([status])
   @@map("organizations")
@@ -107,6 +109,9 @@ model User {
 
   // Inventory Relations
   stockMovements       StockMovement[]
+
+  // Notifications
+  inAppNotifications   InAppNotification[]
 
   @@index([organizationId])
   @@index([status])
@@ -1324,6 +1329,46 @@ model WhatsAppConfig {
 
   @@map("whatsapp_configs")
 }
+
+// ─── Enterprise Notification Settings & In-App Alerts ────────────────────────
+
+model NotificationSetting {
+  id              String   @id @default(uuid()) @db.Uuid
+  organizationId  String   @map("organization_id") @db.Uuid
+  category        String   @map("category") // TICKET_CREATED, TECHNICIAN_ASSIGNED, WORK_ORDER_COMPLETED, INVOICE_GENERATED, WARRANTY_CLAIM_UPDATED, LOW_STOCK_ALERT
+  inAppEnabled    Boolean  @default(true) @map("in_app_enabled")
+  emailEnabled    Boolean  @default(true) @map("email_enabled")
+  whatsappEnabled Boolean  @default(true) @map("whatsapp_enabled")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, category])
+  @@index([organizationId])
+  @@map("notification_settings")
+}
+
+model InAppNotification {
+  id              String   @id @default(uuid()) @db.Uuid
+  organizationId  String   @map("organization_id") @db.Uuid
+  userId          String?  @map("user_id") @db.Uuid
+  category        String   @map("category")
+  title           String   @map("title")
+  message         String   @map("message")
+  metadata        Json?    @map("metadata")
+  isRead          Boolean  @default(false) @map("is_read")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user            User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, isRead])
+  @@index([userId, isRead])
+  @@map("in_app_notifications")
+}
+
 
 
 

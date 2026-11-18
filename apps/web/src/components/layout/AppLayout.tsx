@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { api } from '@/lib/api';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -35,6 +36,7 @@ import {
   ShieldCheck,
   Sparkles,
   Keyboard,
+  CheckCheck,
 } from 'lucide-react';
 import { CopilotDrawer } from '@/components/copilot/CopilotDrawer';
 import { CommandPalette } from '@/components/common/CommandPalette';
@@ -61,6 +63,52 @@ export const AppLayout: React.FC = () => {
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
+
+  // Live in-app notifications
+  const [inAppNotifications, setInAppNotifications] = useState<any[]>([]);
+  const [unreadNotifCount, setUnreadNotifCount] = useState<number>(0);
+
+  const fetchInAppNotifications = async () => {
+    try {
+      const res = await api.get('/notifications/in-app?limit=10');
+      if (res.data) {
+        setInAppNotifications(res.data.items || []);
+        setUnreadNotifCount(res.data.unreadCount || 0);
+      }
+    } catch {
+      // silent fallback
+    }
+  };
+
+  useEffect(() => {
+    fetchInAppNotifications();
+    const interval = setInterval(fetchInAppNotifications, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleMarkNotifRead = async (id: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    try {
+      await api.patch(`/notifications/in-app/${id}/read`);
+      setInAppNotifications((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, isRead: true } : n)),
+      );
+      setUnreadNotifCount((prev) => Math.max(0, prev - 1));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleMarkAllNotifsRead = async (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    try {
+      await api.patch('/notifications/in-app/read-all');
+      setInAppNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+      setUnreadNotifCount(0);
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   // Global enterprise keyboard shortcuts (Ctrl+K, Ctrl+J, ?, G+D, G+T, etc.)
   useKeyboardShortcuts({
@@ -291,6 +339,87 @@ export const AppLayout: React.FC = () => {
               <span>Swagger API Docs</span>
               <ExternalLink className="w-3.5 h-3.5" />
             </a>
+
+            {/* In-App Notifications Feed */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className="relative p-2 rounded-xl text-muted-foreground hover:text-ink hover:bg-zinc-100 transition-colors focus:outline-none cursor-pointer"
+                  title="In-App Notifications"
+                >
+                  <Bell className="w-4 h-4" />
+                  {unreadNotifCount > 0 && (
+                    <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-rose-600 text-[9px] font-bold text-white flex items-center justify-center animate-pulse">
+                      {unreadNotifCount > 9 ? '9+' : unreadNotifCount}
+                    </span>
+                  )}
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-80 p-0 shadow-lg border border-border">
+                <div className="p-3 border-b border-border/70 flex items-center justify-between bg-zinc-50/70">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold font-poppins text-ink">Notifications</span>
+                    {unreadNotifCount > 0 && (
+                      <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700">
+                        {unreadNotifCount} new
+                      </span>
+                    )}
+                  </div>
+                  {unreadNotifCount > 0 && (
+                    <button
+                      onClick={handleMarkAllNotifsRead}
+                      className="text-[11px] font-medium text-primary hover:underline cursor-pointer flex items-center gap-1"
+                    >
+                      <CheckCheck className="w-3 h-3" />
+                      Mark all read
+                    </button>
+                  )}
+                </div>
+
+                <div className="max-h-80 overflow-y-auto divide-y divide-border/50">
+                  {inAppNotifications.length === 0 ? (
+                    <div className="p-6 text-center text-xs text-muted-foreground">
+                      No notifications yet. Operational lifecycle alerts will arrive here.
+                    </div>
+                  ) : (
+                    inAppNotifications.map((n) => (
+                      <div
+                        key={n.id}
+                        onClick={() => handleMarkNotifRead(n.id)}
+                        className={`p-3 text-xs cursor-pointer transition-colors hover:bg-zinc-50 ${
+                          !n.isRead ? 'bg-blue-50/40 font-medium' : 'text-muted-foreground'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <span className={`text-[12px] font-bold ${!n.isRead ? 'text-ink' : 'text-slate-700'}`}>
+                            {n.title}
+                          </span>
+                          {!n.isRead && (
+                            <span className="w-2 h-2 rounded-full bg-blue-600 shrink-0 mt-1" />
+                          )}
+                        </div>
+                        <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2 leading-relaxed">
+                          {n.message}
+                        </p>
+                        <div className="flex items-center justify-between text-[10px] text-slate-400 mt-1.5">
+                          <span className="font-mono">{n.category?.replace(/_/g, ' ')}</span>
+                          <span>{new Date(n.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <div className="p-2 border-t border-border/70 text-center bg-zinc-50/70">
+                  <button
+                    onClick={() => navigate('/settings/organization')}
+                    className="text-[11px] font-semibold text-primary hover:underline cursor-pointer"
+                  >
+                    Manage Notification Delivery Matrix →
+                  </button>
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
             <div className="h-4 w-px bg-border/60" />
 

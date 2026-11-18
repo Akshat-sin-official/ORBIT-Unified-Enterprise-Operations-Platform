@@ -21,10 +21,21 @@ import {
   RefreshCw,
   Power,
   X,
+  Bell,
+  Sliders,
+  Check,
+  CheckSquare,
+  Square,
+  Ticket,
+  UserCheck,
+  Wrench,
+  Receipt,
+  Shield,
+  Package,
 } from 'lucide-react';
 
 export const OrganizationPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'general' | 'smtp' | 'whatsapp' | 'copilot'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'smtp' | 'whatsapp' | 'notifications' | 'copilot'>('general');
   const [loading, setLoading] = useState(true);
 
   // General Org Profile
@@ -93,14 +104,30 @@ export const OrganizationPage: React.FC = () => {
   const [savingGemini, setSavingGemini] = useState(false);
   const [geminiStatusMessage, setGeminiStatusMessage] = useState('');
 
+  // Enterprise Multi-Channel Notification Matrix
+  const [notificationSettings, setNotificationSettings] = useState<any[]>([]);
+  const [savingNotificationSettings, setSavingNotificationSettings] = useState(false);
+  const [notificationSavedSuccess, setNotificationSavedSuccess] = useState(false);
+  const [testNotificationCategory, setTestNotificationCategory] = useState<string>('TICKET_CREATED');
+  const [testNotificationEmail, setTestNotificationEmail] = useState<string>('');
+  const [testNotificationPhone, setTestNotificationPhone] = useState<string>('');
+  const [sendingNotificationTest, setSendingNotificationTest] = useState(false);
+  const [notificationTestResult, setNotificationTestResult] = useState<{
+    inApp: boolean;
+    emailSent: boolean;
+    whatsappSent: boolean;
+    errors: string[];
+  } | null>(null);
+
   const fetchAllSettings = async () => {
     try {
       setLoading(true);
-      const [orgRes, smtpRes, geminiRes, waRes] = await Promise.all([
+      const [orgRes, smtpRes, geminiRes, waRes, notifRes] = await Promise.all([
         api.get('/organizations/current').catch(() => ({ data: null })),
         api.get('/settings/smtp').catch(() => ({ data: null })),
         api.get('/copilot/config').catch(() => ({ data: null })),
         api.get('/whatsapp/status').catch(() => ({ data: null })),
+        api.get('/notifications/settings').catch(() => ({ data: [] })),
       ]);
 
       if (orgRes.data) {
@@ -121,14 +148,24 @@ export const OrganizationPage: React.FC = () => {
           fromName: smtpRes.data.fromName || 'ORBIT Service Operations',
           isConfigured: Boolean(smtpRes.data.isConfigured),
         });
+        if (smtpRes.data.fromEmail && !testNotificationEmail) {
+          setTestNotificationEmail(smtpRes.data.fromEmail);
+        }
       }
 
       if (waRes.data) {
         setWhatsAppStatus(waRes.data);
+        if (waRes.data.phoneNumber && !testNotificationPhone) {
+          setTestNotificationPhone(waRes.data.phoneNumber);
+        }
       }
 
       if (geminiRes.data) {
         setGeminiConfig(geminiRes.data);
+      }
+
+      if (notifRes.data && Array.isArray(notifRes.data)) {
+        setNotificationSettings(notifRes.data);
       }
     } catch (err) {
       console.error('Failed to load settings', err);
@@ -342,6 +379,78 @@ export const OrganizationPage: React.FC = () => {
     }
   };
 
+  const handleToggleChannel = (
+    category: string,
+    channel: 'inAppEnabled' | 'emailEnabled' | 'whatsappEnabled',
+  ) => {
+    setNotificationSavedSuccess(false);
+    setNotificationSettings((prev) =>
+      prev.map((item) =>
+        item.category === category
+          ? { ...item, [channel]: !item[channel] }
+          : item,
+      ),
+    );
+  };
+
+  const handleBulkToggle = (
+    channel: 'inAppEnabled' | 'emailEnabled' | 'whatsappEnabled',
+    enable: boolean,
+  ) => {
+    setNotificationSavedSuccess(false);
+    setNotificationSettings((prev) =>
+      prev.map((item) => ({ ...item, [channel]: enable })),
+    );
+  };
+
+  const handleSaveNotificationSettings = async () => {
+    setSavingNotificationSettings(true);
+    setNotificationSavedSuccess(false);
+    try {
+      const payload = {
+        settings: notificationSettings.map((s) => ({
+          category: s.category,
+          inAppEnabled: s.inAppEnabled,
+          emailEnabled: s.emailEnabled,
+          whatsappEnabled: s.whatsappEnabled,
+        })),
+      };
+      const res = await api.put('/notifications/settings', payload);
+      if (res.data) {
+        setNotificationSettings(res.data);
+      }
+      setNotificationSavedSuccess(true);
+      setTimeout(() => setNotificationSavedSuccess(false), 4000);
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to update notification channel matrix');
+    } finally {
+      setSavingNotificationSettings(false);
+    }
+  };
+
+  const handleSendNotificationTest = async (categoryName?: string) => {
+    const targetCat = categoryName || testNotificationCategory;
+    setSendingNotificationTest(true);
+    setNotificationTestResult(null);
+    try {
+      const res = await api.post('/notifications/test', {
+        category: targetCat,
+        recipientEmail: testNotificationEmail || undefined,
+        recipientPhone: testNotificationPhone || undefined,
+      });
+      setNotificationTestResult(res.data);
+    } catch (err: any) {
+      setNotificationTestResult({
+        inApp: false,
+        emailSent: false,
+        whatsappSent: false,
+        errors: [err.response?.data?.message || 'Test dispatch failed'],
+      });
+    } finally {
+      setSendingNotificationTest(false);
+    }
+  };
+
   return (
     <div className="max-w-5xl mx-auto space-y-6 animate-fade-in p-6">
       {/* Page Header */}
@@ -442,6 +551,20 @@ export const OrganizationPage: React.FC = () => {
                 )}
               </div>
               {activeTab === 'whatsapp' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-full" />}
+            </button>
+
+            <button
+              onClick={() => setActiveTab('notifications')}
+              className={`pb-3 px-3 text-xs font-medium font-poppins transition-colors relative ${
+                activeTab === 'notifications' ? 'text-primary font-semibold' : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <div className="flex items-center gap-1.5">
+                <Sliders className="w-3.5 h-3.5 text-indigo-600" />
+                Notification Matrix
+                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+              </div>
+              {activeTab === 'notifications' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-full" />}
             </button>
 
             <button
@@ -1018,6 +1141,408 @@ export const OrganizationPage: React.FC = () => {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Tab: Enterprise Multi-Channel Notification Matrix */}
+          {activeTab === 'notifications' && (
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                      <CardTitle className="text-sm font-bold font-poppins text-ink flex items-center gap-2">
+                        <Sliders className="w-4 h-4 text-indigo-600" />
+                        Enterprise Notification & Multi-Channel Dispatch Matrix
+                      </CardTitle>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Granular admin control over which delivery channels fire for each operational event across Field Service, Service Desk, Invoicing, and Inventory.
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <Button
+                        onClick={handleSaveNotificationSettings}
+                        disabled={savingNotificationSettings}
+                        size="sm"
+                        className="text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs"
+                      >
+                        {savingNotificationSettings ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+                            Saving Matrix...
+                          </>
+                        ) : notificationSavedSuccess ? (
+                          <>
+                            <Check className="w-3.5 h-3.5 mr-1.5 text-emerald-300" />
+                            Saved!
+                          </>
+                        ) : (
+                          <>
+                            <Check className="w-3.5 h-3.5 mr-1.5" />
+                            Save Channel Preferences
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </CardHeader>
+
+                <CardContent className="space-y-6">
+                  {/* Channel Gateway Health Indicators */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="p-3 rounded-xl border border-blue-200/60 bg-blue-50/50 flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center">
+                          <Bell className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <div className="text-xs font-bold text-ink">In-App Notification Feed</div>
+                          <div className="text-[10px] text-muted-foreground">Header bell & event ledger</div>
+                        </div>
+                      </div>
+                      <Badge className="bg-blue-100 text-blue-800 border-blue-200 text-[10px]">
+                        ACTIVE
+                      </Badge>
+                    </div>
+
+                    <div className="p-3 rounded-xl border border-emerald-200/60 bg-emerald-50/50 flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                          <MessageSquare className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <div className="text-xs font-bold text-ink">WhatsApp Gateway</div>
+                          <div className="text-[10px] text-muted-foreground">WhatsFlow API automation</div>
+                        </div>
+                      </div>
+                      <Badge
+                        variant={whatsAppStatus.isConnected ? 'success' : 'outline'}
+                        className="text-[10px]"
+                      >
+                        {whatsAppStatus.isConnected ? 'CONNECTED' : 'DISCONNECTED'}
+                      </Badge>
+                    </div>
+
+                    <div className="p-3 rounded-xl border border-indigo-200/60 bg-indigo-50/50 flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center">
+                          <Mail className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <div className="text-xs font-bold text-ink">SMTP Mail Gateway</div>
+                          <div className="text-[10px] text-muted-foreground">
+                            {smtpConfig.host || 'Not configured'}
+                          </div>
+                        </div>
+                      </div>
+                      <Badge
+                        variant={smtpConfig.isConfigured ? 'success' : 'outline'}
+                        className="text-[10px]"
+                      >
+                        {smtpConfig.isConfigured ? 'VERIFIED' : 'PENDING'}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  {/* Bulk Quick-Toggles */}
+                  <div className="p-3 bg-zinc-50 rounded-xl border border-border/70 flex flex-wrap items-center justify-between gap-3 text-xs">
+                    <span className="font-semibold text-ink text-xs">Batch Channel Toggles:</span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleBulkToggle('inAppEnabled', true)}
+                        className="h-7 text-[11px] px-2.5"
+                      >
+                        Enable All In-App
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleBulkToggle('whatsappEnabled', true)}
+                        className="h-7 text-[11px] px-2.5"
+                      >
+                        Enable All WhatsApp
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleBulkToggle('emailEnabled', true)}
+                        className="h-7 text-[11px] px-2.5"
+                      >
+                        Enable All Email
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Category Matrix Table */}
+                  <div className="border border-border/80 rounded-xl overflow-hidden shadow-2xs">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-zinc-100/80 border-b border-border/80 text-[11px] font-bold text-ink">
+                          <th className="py-3 px-4">Event Category & Trigger</th>
+                          <th className="py-3 px-3 text-center">
+                            <div className="flex items-center justify-center gap-1.5 text-blue-700">
+                              <Bell className="w-3.5 h-3.5" />
+                              <span>In-App</span>
+                            </div>
+                          </th>
+                          <th className="py-3 px-3 text-center">
+                            <div className="flex items-center justify-center gap-1.5 text-emerald-700">
+                              <MessageSquare className="w-3.5 h-3.5" />
+                              <span>WhatsApp</span>
+                            </div>
+                          </th>
+                          <th className="py-3 px-3 text-center">
+                            <div className="flex items-center justify-center gap-1.5 text-indigo-700">
+                              <Mail className="w-3.5 h-3.5" />
+                              <span>Outbound Mail</span>
+                            </div>
+                          </th>
+                          <th className="py-3 px-3 text-right">Instant Test</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border/60 bg-white">
+                        {notificationSettings.map((cat) => {
+                          const getCategoryIcon = (code: string) => {
+                            switch (code) {
+                              case 'TICKET_CREATED':
+                                return <Ticket className="w-4 h-4 text-blue-600" />;
+                              case 'TECHNICIAN_ASSIGNED':
+                                return <UserCheck className="w-4 h-4 text-amber-600" />;
+                              case 'WORK_ORDER_COMPLETED':
+                                return <Wrench className="w-4 h-4 text-emerald-600" />;
+                              case 'INVOICE_GENERATED':
+                                return <Receipt className="w-4 h-4 text-purple-600" />;
+                              case 'WARRANTY_CLAIM_UPDATED':
+                                return <Shield className="w-4 h-4 text-teal-600" />;
+                              case 'LOW_STOCK_ALERT':
+                                return <Package className="w-4 h-4 text-rose-600" />;
+                              default:
+                                return <Bell className="w-4 h-4 text-slate-600" />;
+                            }
+                          };
+
+                          return (
+                            <tr key={cat.category} className="hover:bg-zinc-50/70 transition-colors">
+                              <td className="py-3.5 px-4">
+                                <div className="flex items-start gap-3">
+                                  <div className="p-1.5 rounded-lg bg-zinc-100 shrink-0 mt-0.5">
+                                    {getCategoryIcon(cat.category)}
+                                  </div>
+                                  <div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-bold text-ink">{cat.label}</span>
+                                      <Badge variant="outline" className="text-[9px] font-mono py-0 px-1.5">
+                                        {cat.targetAudience}
+                                      </Badge>
+                                    </div>
+                                    <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
+                                      {cat.description}
+                                    </p>
+                                  </div>
+                                </div>
+                              </td>
+
+                              {/* In-App Checkbox */}
+                              <td className="py-3.5 px-3 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleChannel(cat.category, 'inAppEnabled')}
+                                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all ${
+                                    cat.inAppEnabled
+                                      ? 'bg-blue-50 border-blue-300 text-blue-700 shadow-2xs'
+                                      : 'bg-zinc-100 border-zinc-200 text-zinc-400 hover:text-zinc-600'
+                                  }`}
+                                >
+                                  {cat.inAppEnabled ? (
+                                    <CheckSquare className="w-4 h-4 text-blue-600" />
+                                  ) : (
+                                    <Square className="w-4 h-4 text-zinc-400" />
+                                  )}
+                                  <span>{cat.inAppEnabled ? 'Enabled' : 'Off'}</span>
+                                </button>
+                              </td>
+
+                              {/* WhatsApp Checkbox */}
+                              <td className="py-3.5 px-3 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleChannel(cat.category, 'whatsappEnabled')}
+                                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all ${
+                                    cat.whatsappEnabled
+                                      ? 'bg-emerald-50 border-emerald-300 text-emerald-700 shadow-2xs'
+                                      : 'bg-zinc-100 border-zinc-200 text-zinc-400 hover:text-zinc-600'
+                                  }`}
+                                >
+                                  {cat.whatsappEnabled ? (
+                                    <CheckSquare className="w-4 h-4 text-emerald-600" />
+                                  ) : (
+                                    <Square className="w-4 h-4 text-zinc-400" />
+                                  )}
+                                  <span>{cat.whatsappEnabled ? 'Enabled' : 'Off'}</span>
+                                </button>
+                              </td>
+
+                              {/* Email Checkbox */}
+                              <td className="py-3.5 px-3 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleChannel(cat.category, 'emailEnabled')}
+                                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all ${
+                                    cat.emailEnabled
+                                      ? 'bg-indigo-50 border-indigo-300 text-indigo-700 shadow-2xs'
+                                      : 'bg-zinc-100 border-zinc-200 text-zinc-400 hover:text-zinc-600'
+                                  }`}
+                                >
+                                  {cat.emailEnabled ? (
+                                    <CheckSquare className="w-4 h-4 text-indigo-600" />
+                                  ) : (
+                                    <Square className="w-4 h-4 text-zinc-400" />
+                                  )}
+                                  <span>{cat.emailEnabled ? 'Enabled' : 'Off'}</span>
+                                </button>
+                              </td>
+
+                              {/* Row Test Button */}
+                              <td className="py-3.5 px-3 text-right">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleSendNotificationTest(cat.category)}
+                                  disabled={sendingNotificationTest}
+                                  className="h-7 text-[11px] text-muted-foreground hover:text-ink px-2.5"
+                                  title="Send instant test alert"
+                                >
+                                  <Send className="w-3 h-3 mr-1" />
+                                  Test
+                                </Button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Live Diagnostic & Test Broadcast Sandbox */}
+                  <div className="p-5 rounded-xl border border-indigo-200/70 bg-gradient-to-br from-indigo-50/40 via-white to-blue-50/40 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="text-xs font-bold text-ink flex items-center gap-1.5">
+                          <Send className="w-3.5 h-3.5 text-indigo-600" />
+                          Multi-Channel Verification Dispatcher
+                        </h4>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          Simulate an operational event and verify delivery across all enabled channels in real-time.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div>
+                        <Label className="text-[11px] font-semibold text-ink">Target Event Category</Label>
+                        <select
+                          value={testNotificationCategory}
+                          onChange={(e) => setTestNotificationCategory(e.target.value)}
+                          className="mt-1 w-full text-xs font-medium border border-border rounded-lg p-2 bg-white focus:outline-none focus:ring-1 focus:ring-primary"
+                        >
+                          {notificationSettings.map((cat) => (
+                            <option key={cat.category} value={cat.category}>
+                              {cat.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <Label className="text-[11px] font-semibold text-ink">Test Email Recipient</Label>
+                        <Input
+                          type="email"
+                          value={testNotificationEmail}
+                          onChange={(e) => setTestNotificationEmail(e.target.value)}
+                          placeholder="e.g. manager@orbit.local"
+                          className="mt-1 text-xs h-9 bg-white"
+                        />
+                      </div>
+
+                      <div>
+                        <Label className="text-[11px] font-semibold text-ink">Test WhatsApp Recipient</Label>
+                        <Input
+                          type="tel"
+                          value={testNotificationPhone}
+                          onChange={(e) => setTestNotificationPhone(e.target.value)}
+                          placeholder="e.g. +91 98765 43210"
+                          className="mt-1 text-xs h-9 bg-white"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1">
+                      <Button
+                        type="button"
+                        onClick={() => handleSendNotificationTest()}
+                        disabled={sendingNotificationTest}
+                        size="sm"
+                        className="text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs"
+                      >
+                        {sendingNotificationTest ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+                            Dispatching Broadcast...
+                          </>
+                        ) : (
+                          <>
+                            <Send className="w-3.5 h-3.5 mr-1.5" />
+                            Dispatch Verification Broadcast
+                          </>
+                        )}
+                      </Button>
+
+                      {notificationTestResult && (
+                        <div className="flex items-center gap-2 text-xs">
+                          <span className="font-semibold text-ink">Channel Results:</span>
+                          <Badge
+                            variant={notificationTestResult.inApp ? 'success' : 'outline'}
+                            className="text-[10px]"
+                          >
+                            In-App: {notificationTestResult.inApp ? 'Dispatched' : 'Skipped'}
+                          </Badge>
+                          <Badge
+                            variant={notificationTestResult.whatsappSent ? 'success' : 'outline'}
+                            className="text-[10px]"
+                          >
+                            WhatsApp: {notificationTestResult.whatsappSent ? 'Dispatched' : 'Skipped'}
+                          </Badge>
+                          <Badge
+                            variant={notificationTestResult.emailSent ? 'success' : 'outline'}
+                            className="text-[10px]"
+                          >
+                            Email: {notificationTestResult.emailSent ? 'Dispatched' : 'Skipped'}
+                          </Badge>
+                        </div>
+                      )}
+                    </div>
+
+                    {notificationTestResult?.errors && notificationTestResult.errors.length > 0 && (
+                      <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-rose-800 text-[11px] space-y-1">
+                        <div className="font-bold flex items-center gap-1.5">
+                          <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                          Delivery Notices:
+                        </div>
+                        {notificationTestResult.errors.map((err, i) => (
+                          <div key={i} className="pl-5">• {err}</div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           )}
 

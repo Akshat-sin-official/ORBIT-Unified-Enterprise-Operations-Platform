@@ -18,14 +18,18 @@ import {
   WorkOrderStatus,
   TechnicianStatus,
   WarrantyStatus,
+  StockMovementType,
+  InvoiceStatus,
   Prisma,
 } from '@prisma/client';
+import { NotificationService } from '../notifications/notifications.service';
 
 @Injectable()
 export class FieldServiceService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly whatsAppService: WhatsAppService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   // ─── Work Orders ───────────────────────────────────────────────────────────
@@ -246,6 +250,27 @@ export class FieldServiceService {
           .catch(() => {});
       }
 
+      if (dto.technicianId && workOrder.technician?.user) {
+        this.notificationService
+          .dispatch(organizationId, {
+            category: 'TECHNICIAN_ASSIGNED',
+            title: `Technician Assigned: #${workOrder.workOrderNumber}`,
+            message: `Engineer ${workOrder.technician.user.firstName} ${workOrder.technician.user.lastName} has been assigned to Work Order #${workOrder.workOrderNumber}.`,
+            customerName: customer.name,
+            customerEmail: customer.email,
+            customerPhone: customer.phone || undefined,
+            staffName: `${workOrder.technician.user.firstName} ${workOrder.technician.user.lastName}`,
+            staffEmail: workOrder.technician.user.email,
+            staffPhone: workOrder.technician.user.phone || undefined,
+            metadata: {
+              workOrderId: workOrder.id,
+              workOrderNumber: workOrder.workOrderNumber,
+              title: workOrder.title,
+            },
+          })
+          .catch(() => {});
+      }
+
       return workOrder;
     });
   }
@@ -419,6 +444,25 @@ export class FieldServiceService {
           .catch(() => {});
       }
 
+      this.notificationService
+        .dispatch(organizationId, {
+          category: 'TECHNICIAN_ASSIGNED',
+          title: `Technician Assigned: #${wo.workOrderNumber}`,
+          message: `Technician ${tech.user.firstName} ${tech.user.lastName} (${tech.technicianCode}) has been assigned to Work Order #${wo.workOrderNumber}.`,
+          customerName: wo.customer.name,
+          customerEmail: wo.customer.email,
+          customerPhone: wo.customer.phone || undefined,
+          staffName: `${tech.user.firstName} ${tech.user.lastName}`,
+          staffEmail: tech.user.email,
+          staffPhone: tech.user.phone || undefined,
+          metadata: {
+            workOrderId: wo.id,
+            workOrderNumber: wo.workOrderNumber,
+            technician: `${tech.user.firstName} ${tech.user.lastName}`,
+          },
+        })
+        .catch(() => {});
+
       return updated;
     });
   }
@@ -468,7 +512,7 @@ export class FieldServiceService {
         break;
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const updatedWo = await this.prisma.$transaction(async (tx) => {
       const updated = await tx.workOrder.update({
         where: { id: wo.id },
         data: updateData,
@@ -520,6 +564,22 @@ export class FieldServiceService {
 
       return updated;
     });
+
+    if (toStatus === WorkOrderStatus.COMPLETED) {
+      const fullCompleted = await this.prisma.workOrder.findUnique({
+        where: { id: workOrderId },
+        include: {
+          technician: { include: { user: true } },
+          customer: true,
+          partsUsed: true,
+        },
+      });
+      if (fullCompleted) {
+        await this.handleWorkOrderCompletion(organizationId, fullCompleted, actorId);
+      }
+    }
+
+    return updatedWo;
   }
 
   async addPartUsed(organizationId: string, workOrderId: string, dto: AddPartUsedDto) {
@@ -589,7 +649,7 @@ export class FieldServiceService {
 
     const now = new Date();
 
-    return this.prisma.$transaction(async (tx) => {
+    const updatedWo = await this.prisma.$transaction(async (tx) => {
       const completed = await tx.workOrder.update({
         where: { id: wo.id },
         data: {
@@ -639,6 +699,209 @@ export class FieldServiceService {
 
       return completed;
     });
+
+    await this.handleWorkOrderCompletion(organizationId, updatedWo, actorId);
+
+    return updatedWo;
+  }
+
+  /**
+   * Enterprise Automations triggered upon Work Order Completion:
+   * 1. Auto-deduct inventory balances for parts consumed during repair
+   * 2. Auto-trigger low stock alert if part quantity reaches or breaches minSafetyStock
+   * 3. Auto-draft or issue service invoice with labour and billable parts
+   * 4. Multi-channel dispatch (In-App, WhatsApp, Email) per admin notification settings
+   */
+  private async handleWorkOrderCompletion(
+    organizationId: string,
+    completed: any,
+    actorId?: string,
+  ) {
+    try {
+      // ─── 1. Automated Inventory Deduction for Parts Used ──────────────────
+      if (completed.partsUsed && completed.partsUsed.length > 0) {
+        for (const p of completed.partsUsed) {
+          if (!p.partId) continue;
+          const part = await this.prisma.part.findFirst({
+            where: { id: p.partId, organizationId },
+          });
+          if (!part) continue;
+
+          // Find stock balance in warehouse
+          const balance = await this.prisma.stockBalance.findFirst({
+            where: { partId: part.id, organizationId },
+          });
+
+          if (balance) {
+            const qtyUsed = Number(p.quantity) || 1;
+            const newOnHand = Math.max(0, balance.quantityOnHand - qtyUsed);
+            const newAvail = Math.max(0, balance.quantityAvailable - qtyUsed);
+
+            await this.prisma.stockBalance.update({
+              where: { id: balance.id },
+              data: {
+                quantityOnHand: newOnHand,
+                quantityAvailable: newAvail,
+              },
+            });
+
+            await this.prisma.stockMovement.create({
+              data: {
+                organizationId,
+                movementNumber: `MOV-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+                partId: part.id,
+                sourceWarehouseId: balance.warehouseId,
+                workOrderId: completed.id,
+                technicianId: completed.technicianId || null,
+                type: StockMovementType.CONSUMPTION,
+                quantity: qtyUsed,
+                unitCost: part.costPrice,
+                referenceNotes: `Auto-deducted for completed Work Order #${completed.workOrderNumber}`,
+                actorId,
+              },
+            });
+
+            // Trigger Low Stock Alert if reached or breached minSafetyStock
+            if (newOnHand <= part.minSafetyStock) {
+              await this.notificationService.dispatch(organizationId, {
+                category: 'LOW_STOCK_ALERT',
+                title: `Low Stock Alert: ${part.name} (${part.partNumber})`,
+                message: `Current stock of ${part.name} (${part.partNumber}) is down to ${newOnHand} units (minimum safety threshold: ${part.minSafetyStock}). Reorder draft recommended.`,
+                metadata: {
+                  partId: part.id,
+                  partNumber: part.partNumber,
+                  partName: part.name,
+                  remainingStock: newOnHand,
+                  minSafetyStock: part.minSafetyStock,
+                },
+              });
+            }
+          }
+        }
+      }
+
+      // ─── 2. Auto-Generate Service Invoice ─────────────────────────────────
+      const existingInvoice = await this.prisma.invoice.findFirst({
+        where: { workOrderId: completed.id, organizationId },
+      });
+
+      if (!existingInvoice && (completed.customerId || completed.customer?.id)) {
+        const custId = completed.customerId || completed.customer.id;
+        const count = await this.prisma.invoice.count({ where: { organizationId } });
+        const seq = String(count + 1).padStart(4, '0');
+        const invoiceNumber = `INV-2026-${seq}`;
+
+        let subtotal = 0;
+        let taxAmount = 0;
+        const itemsToCreate: any[] = [];
+
+        // Labour fee
+        if (completed.labourCharge && Number(completed.labourCharge) > 0) {
+          const labour = Number(completed.labourCharge);
+          const labourTax = labour * 0.18;
+          subtotal += labour;
+          taxAmount += labourTax;
+          itemsToCreate.push({
+            description: 'On-site Field Service & Diagnostic Labour',
+            quantity: 1,
+            unitPrice: labour,
+            taxRate: 18.0,
+            amount: labour,
+            isWarrantyCovered: false,
+          });
+        }
+
+        // Parts used
+        if (completed.partsUsed && completed.partsUsed.length > 0) {
+          for (const p of completed.partsUsed) {
+            const cost = Number(p.unitCost) || 0;
+            const qty = Number(p.quantity) || 1;
+
+            if (p.warrantyCovered) {
+              itemsToCreate.push({
+                description: `${p.partName || p.partNumber} [Warranty Covered]`,
+                partId: p.partId,
+                quantity: qty,
+                unitPrice: cost,
+                taxRate: 0,
+                amount: 0,
+                isWarrantyCovered: true,
+              });
+            } else {
+              const itemSub = cost * qty;
+              const itemTax = itemSub * 0.18;
+              subtotal += itemSub;
+              taxAmount += itemTax;
+              itemsToCreate.push({
+                description: p.partName || p.partNumber,
+                partId: p.partId,
+                quantity: qty,
+                unitPrice: cost,
+                taxRate: 18.0,
+                amount: itemSub,
+                isWarrantyCovered: false,
+              });
+            }
+          }
+        }
+
+        const totalAmount = subtotal + taxAmount;
+        const autoInv = await this.prisma.invoice.create({
+          data: {
+            organizationId,
+            invoiceNumber,
+            customerId: custId,
+            workOrderId: completed.id,
+            status: totalAmount === 0 ? InvoiceStatus.WARRANTY_ABSORBED : InvoiceStatus.ISSUED,
+            subtotal,
+            taxAmount,
+            totalAmount,
+            amountPaid: 0,
+            balanceDue: totalAmount,
+            dueDate: new Date(Date.now() + 15 * 86400000), // 15 days due
+            notes: `Auto-generated on completion of Work Order #${completed.workOrderNumber}`,
+            items: { create: itemsToCreate },
+          },
+        });
+
+        // Dispatch Invoice Generated Notification
+        await this.notificationService.dispatch(organizationId, {
+          category: 'INVOICE_GENERATED',
+          title: `Invoice Generated: ${invoiceNumber}`,
+          message: `Service invoice ${invoiceNumber} totaling ₹${totalAmount.toFixed(2)} has been issued for Work Order #${completed.workOrderNumber}.`,
+          customerName: `${completed.customer?.firstName || ''} ${completed.customer?.lastName || ''}`.trim() || undefined,
+          customerEmail: completed.customer?.email,
+          customerPhone: completed.customer?.phone || undefined,
+          metadata: {
+            invoiceId: autoInv.id,
+            invoiceNumber,
+            totalAmount: `₹${totalAmount.toFixed(2)}`,
+            workOrderNumber: completed.workOrderNumber,
+          },
+        });
+      }
+
+      // ─── 3. Dispatch Work Order Completed Notification ────────────────────
+      await this.notificationService.dispatch(organizationId, {
+        category: 'WORK_ORDER_COMPLETED',
+        title: `Work Order #${completed.workOrderNumber} Completed`,
+        message: `Field repair service for Work Order #${completed.workOrderNumber} has been verified and successfully completed on-site.`,
+        customerName: `${completed.customer?.firstName || ''} ${completed.customer?.lastName || ''}`.trim() || undefined,
+        customerEmail: completed.customer?.email,
+        customerPhone: completed.customer?.phone || undefined,
+        staffName: completed.technician?.user ? `${completed.technician.user.firstName} ${completed.technician.user.lastName}` : undefined,
+        staffPhone: completed.technician?.user?.phone || undefined,
+        staffEmail: completed.technician?.user?.email,
+        metadata: {
+          workOrderId: completed.id,
+          workOrderNumber: completed.workOrderNumber,
+          completedAt: completed.completedAt?.toISOString(),
+          otpVerified: true,
+        },
+      });
+    } catch (err: any) {
+      console.error(`[FieldService] Error in post-completion automations:`, err);
+    }
   }
 
   // ─── Technicians ───────────────────────────────────────────────────────────

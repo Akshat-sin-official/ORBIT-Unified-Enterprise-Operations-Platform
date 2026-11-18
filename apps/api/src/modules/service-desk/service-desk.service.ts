@@ -12,12 +12,14 @@ import { CreateTicketCommentDto } from './dto/create-ticket-comment.dto';
 import { CreateSlaPolicyDto } from './dto/create-sla-policy.dto';
 import { BulkTicketActionDto } from './dto/bulk-ticket-action.dto';
 import { TicketPriority, TicketStatus, Prisma } from '@prisma/client';
+import { NotificationService } from '../notifications/notifications.service';
 
 @Injectable()
 export class ServiceDeskService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly whatsAppService: WhatsAppService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   // ─── Tickets ───────────────────────────────────────────────────────────────
@@ -288,6 +290,44 @@ export class ServiceDeskService {
             ticketNumber: ticket.ticketNumber,
             title: ticket.title,
             priority: ticket.priority,
+          })
+          .catch(() => {});
+      }
+
+      // Enterprise Multi-Channel Notification (In-App, WhatsApp, Email)
+      this.notificationService
+        .dispatch(organizationId, {
+          category: 'TICKET_CREATED',
+          title: `Service Ticket Logged: ${ticket.ticketNumber}`,
+          message: `Dear ${customer.name}, your service ticket #${ticket.ticketNumber} regarding "${ticket.title}" has been registered with priority ${ticket.priority}.`,
+          customerName: customer.name,
+          customerEmail: customer.email,
+          customerPhone: customer.phone || undefined,
+          metadata: {
+            ticketId: ticket.id,
+            ticketNumber: ticket.ticketNumber,
+            priority: ticket.priority,
+            category: ticket.category,
+          },
+        })
+        .catch(() => {});
+
+      if (ticket.assignedTo) {
+        this.notificationService
+          .dispatch(organizationId, {
+            category: 'TECHNICIAN_ASSIGNED',
+            title: `Assigned: Ticket #${ticket.ticketNumber}`,
+            message: `Specialist ${ticket.assignedTo.firstName} ${ticket.assignedTo.lastName} has been assigned to ticket #${ticket.ticketNumber}.`,
+            customerName: customer.name,
+            customerEmail: customer.email,
+            customerPhone: customer.phone || undefined,
+            staffName: `${ticket.assignedTo.firstName} ${ticket.assignedTo.lastName}`,
+            staffEmail: ticket.assignedTo.email,
+            staffPhone: ticket.assignedTo.phone || undefined,
+            metadata: {
+              ticketId: ticket.id,
+              ticketNumber: ticket.ticketNumber,
+            },
           })
           .catch(() => {});
       }

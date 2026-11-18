@@ -436,14 +436,20 @@ export class WhatsAppService {
       techPhone: string;
       workOrderNumber: string;
       timeSlot?: string;
+      trackingUrl?: string;
     },
   ) {
     const slot = data.timeSlot ? ` (${data.timeSlot})` : '';
+    const trackingLine = data.trackingUrl
+      ? `\n📍 *Live GPS Tracking & ETA:* ${data.trackingUrl}\n`
+      : '';
+
     const text =
       `🚗 *Technician En Route*\n\n` +
       `Dear *${data.customerName}*, our certified field engineer *${data.techName}* is currently traveling to your site for work order *#${data.workOrderNumber}*${slot}.\n\n` +
-      `📞 Engineer Phone: ${data.techPhone || 'Available via service desk'}\n\n` +
-      `Please ensure the equipment is accessible upon arrival.`;
+      `📞 Engineer Phone: ${data.techPhone || 'Available via service desk'}\n` +
+      trackingLine +
+      `\nPlease ensure the equipment is accessible upon arrival.`;
 
     return this.sendMessage(organizationId, data.customerPhone, text, 'CUSTOMER');
   }

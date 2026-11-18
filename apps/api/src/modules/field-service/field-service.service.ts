@@ -32,6 +32,28 @@ export class FieldServiceService {
     private readonly notificationService: NotificationService,
   ) {}
 
+  private async getOrCreateTrackingToken(workOrderId: string): Promise<string> {
+    const existing = await this.prisma.customerTrackingSession.findFirst({
+      where: { workOrderId, isActive: true, expiresAt: { gt: new Date() } },
+    });
+    if (existing) return existing.secureToken;
+
+    const secureToken = Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10);
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 3);
+
+    const created = await this.prisma.customerTrackingSession.create({
+      data: {
+        workOrderId,
+        secureToken,
+        isActive: true,
+        expiresAt,
+        etaMinutes: 25,
+      },
+    });
+    return created.secureToken;
+  }
+
   // ─── Work Orders ───────────────────────────────────────────────────────────
 
   async getWorkOrders(
@@ -236,18 +258,21 @@ export class FieldServiceService {
       }
 
       if (customer.phone && dto.technicianId) {
-        this.whatsAppService
-          .notifyCustomerTechnicianDispatched(organizationId, {
-            customerName: customer.name,
-            customerPhone: customer.phone,
-            techName: workOrder.technician
-              ? `${workOrder.technician.user.firstName} ${workOrder.technician.user.lastName}`
-              : 'Assigned Field Engineer',
-            techPhone: workOrder.technician?.user?.phone || '',
-            workOrderNumber: workOrder.workOrderNumber,
-            timeSlot: workOrder.timeSlot || undefined,
-          })
-          .catch(() => {});
+        this.getOrCreateTrackingToken(workOrder.id).then((token) => {
+          this.whatsAppService
+            .notifyCustomerTechnicianDispatched(organizationId, {
+              customerName: customer.name,
+              customerPhone: customer.phone,
+              techName: workOrder.technician
+                ? `${workOrder.technician.user.firstName} ${workOrder.technician.user.lastName}`
+                : 'Assigned Field Engineer',
+              techPhone: workOrder.technician?.user?.phone || '',
+              workOrderNumber: workOrder.workOrderNumber,
+              timeSlot: workOrder.timeSlot || undefined,
+              trackingUrl: `http://localhost:5173/track/${token}`,
+            })
+            .catch(() => {});
+        }).catch(() => {});
       }
 
       if (dto.technicianId && workOrder.technician?.user) {
@@ -432,16 +457,19 @@ export class FieldServiceService {
       }
 
       if (wo.customer.phone) {
-        this.whatsAppService
-          .notifyCustomerTechnicianDispatched(organizationId, {
-            customerName: wo.customer.name,
-            customerPhone: wo.customer.phone,
-            techName: `${tech.user.firstName} ${tech.user.lastName}`,
-            techPhone: tech.user.phone || '',
-            workOrderNumber: wo.workOrderNumber,
-            timeSlot: updated.timeSlot || undefined,
-          })
-          .catch(() => {});
+        this.getOrCreateTrackingToken(wo.id).then((token) => {
+          this.whatsAppService
+            .notifyCustomerTechnicianDispatched(organizationId, {
+              customerName: wo.customer.name,
+              customerPhone: wo.customer.phone,
+              techName: `${tech.user.firstName} ${tech.user.lastName}`,
+              techPhone: tech.user.phone || '',
+              workOrderNumber: wo.workOrderNumber,
+              timeSlot: updated.timeSlot || undefined,
+              trackingUrl: `http://localhost:5173/track/${token}`,
+            })
+            .catch(() => {});
+        }).catch(() => {});
       }
 
       this.notificationService
@@ -550,16 +578,19 @@ export class FieldServiceService {
           })
           .catch(() => {});
       } else if (toStatus === WorkOrderStatus.TRAVELING && wo.customer?.phone) {
-        this.whatsAppService
-          .notifyCustomerTechnicianDispatched(organizationId, {
-            customerName: wo.customer.name,
-            customerPhone: wo.customer.phone,
-            techName: wo.technician ? `${wo.technician.user.firstName} ${wo.technician.user.lastName}` : 'Field Engineer',
-            techPhone: wo.technician?.user?.phone || '',
-            workOrderNumber: wo.workOrderNumber,
-            timeSlot: wo.timeSlot || undefined,
-          })
-          .catch(() => {});
+        this.getOrCreateTrackingToken(wo.id).then((token) => {
+          this.whatsAppService
+            .notifyCustomerTechnicianDispatched(organizationId, {
+              customerName: wo.customer.name,
+              customerPhone: wo.customer.phone,
+              techName: wo.technician ? `${wo.technician.user.firstName} ${wo.technician.user.lastName}` : 'Field Engineer',
+              techPhone: wo.technician?.user?.phone || '',
+              workOrderNumber: wo.workOrderNumber,
+              timeSlot: wo.timeSlot || undefined,
+              trackingUrl: `http://localhost:5173/track/${token}`,
+            })
+            .catch(() => {});
+        }).catch(() => {});
       }
 
       return updated;

@@ -20,6 +20,7 @@ import { ContractsPage } from '@/pages/contracts/ContractsPage';
 import { RmaConsolePage } from '@/pages/rma/RmaConsolePage';
 import { PartnersPage } from '@/pages/partners/PartnersPage';
 import { PublicTrackingPage } from '@/pages/tracking/PublicTrackingPage';
+import { MobileTechnicianPage } from '@/pages/mobile/MobileTechnicianPage';
 import { InventoryPage } from '@/pages/inventory/InventoryPage';
 import { LogisticsPage } from '@/pages/logistics/LogisticsPage';
 import { FinancePage } from '@/pages/finance/FinancePage';
@@ -61,6 +62,16 @@ export const AppRoutes: React.FC = () => {
 
       {/* Public Customer Self-Service Tracking (No Login Required) */}
       <Route path="/track/:token" element={<PublicTrackingPage />} />
+
+      {/* Frontline Mobile Technician PWA Portal */}
+      <Route
+        path="/m/work-orders"
+        element={
+          <ProtectedRoute>
+            <MobileTechnicianPage />
+          </ProtectedRoute>
+        }
+      />
 
       <Route
         path="/"

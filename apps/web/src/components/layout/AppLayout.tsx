@@ -40,7 +40,11 @@ import {
   Sparkles,
   Keyboard,
   CheckCheck,
+  Smartphone,
+  WifiOff,
+  RefreshCw,
 } from 'lucide-react';
+import { useOfflineSync } from '@/lib/offline-sync';
 import { CopilotDrawer } from '@/components/copilot/CopilotDrawer';
 import { CommandPalette } from '@/components/common/CommandPalette';
 import { ShortcutsHelpModal } from '@/components/common/ShortcutsHelpModal';
@@ -66,6 +70,8 @@ export const AppLayout: React.FC = () => {
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
+
+  const { isOnline, queueCount, syncNow, isSyncing } = useOfflineSync();
 
   // Live in-app notifications
   const [inAppNotifications, setInAppNotifications] = useState<any[]>([]);
@@ -154,6 +160,7 @@ export const AppLayout: React.FC = () => {
         { label: 'Work Orders', to: '/operations/work-orders', icon: Wrench, enabled: true, permission: 'work_order.view' },
         { label: 'Visual Dispatch Board', to: '/operations/dispatch', icon: Calendar, enabled: true, permission: 'work_order.view' },
         { label: 'AMC Contracts', to: '/operations/contracts', icon: FileText, enabled: true, permission: 'warranty.view' },
+        { label: 'Mobile Tech App (PWA)', to: '/m/work-orders', icon: Smartphone, enabled: true, permission: 'work_order.view' },
       ],
     },
     {
@@ -462,6 +469,37 @@ export const AppLayout: React.FC = () => {
             </DropdownMenu>
           </div>
         </header>
+
+        {/* Global Offline / Sync Banner */}
+        {(!isOnline || queueCount > 0) && (
+          <div className="bg-amber-500/15 border-b border-amber-300/60 px-6 py-2 flex items-center justify-between text-xs text-amber-900 shrink-0">
+            <div className="flex items-center gap-2">
+              <WifiOff className="w-4 h-4 text-amber-700" />
+              <span>
+                {!isOnline ? (
+                  <strong>Offline Mode:</strong>
+                ) : (
+                  <strong>Reconnected:</strong>
+                )}{' '}
+                {queueCount > 0
+                  ? `${queueCount} frontline actions queued in local IndexedDB.`
+                  : 'Working offline. Changes are safely cached locally.'}
+              </span>
+            </div>
+            {queueCount > 0 && isOnline && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={syncNow}
+                disabled={isSyncing}
+                className="h-7 text-xs bg-white border-amber-300 text-amber-900 hover:bg-amber-50 flex items-center gap-1.5"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                <span>Sync Now</span>
+              </Button>
+            )}
+          </div>
+        )}
 
         {/* Viewport Content */}
         <main className="flex-1 overflow-y-auto p-6 md:p-8 bg-[#FAF9F6]">

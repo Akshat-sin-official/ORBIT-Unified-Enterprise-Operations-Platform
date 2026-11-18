@@ -1,0 +1,26 @@
+{
+  "name": "ORBIT Field Ops",
+  "short_name": "ORBIT Ops",
+  "description": "Unified Enterprise Field Service Operations & Offline Frontline App",
+  "start_url": "/m/work-orders",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#FAF9F6",
+  "theme_color": "#0f172a",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/orbit-logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/orbit-logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "productivity", "utilities"]
+}

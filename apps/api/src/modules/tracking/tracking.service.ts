@@ -20,8 +20,16 @@ export class TrackingService {
 
   /**
    * Generates or retrieves an active secure tracking session for a work order
+   * Strictly validates tenant ownership to prevent IDOR vulnerabilities
    */
-  async getOrCreateSession(workOrderId: string) {
+  async getOrCreateSession(organizationId: string, workOrderId: string) {
+    const wo = await this.prisma.workOrder.findFirst({
+      where: { id: workOrderId, organizationId },
+    });
+    if (!wo) {
+      throw new NotFoundException('Work order record not found in your organization');
+    }
+
     const existing = await this.prisma.customerTrackingSession.findFirst({
       where: {
         workOrderId,
@@ -50,13 +58,34 @@ export class TrackingService {
   }
 
   /**
+   * Helper to mask customer and staff PII for GDPR / DPDP compliance
+   */
+  private maskName(name?: string): string {
+    if (!name) return 'Customer';
+    const parts = name.trim().split(' ');
+    if (parts.length === 1) {
+      return parts[0].length > 2 ? `${parts[0][0]}***${parts[0].slice(-1)}` : `${parts[0][0]}*`;
+    }
+    return `${parts[0]} ${parts[parts.length - 1][0]}.`;
+  }
+
+  private maskPhone(phone?: string): string {
+    if (!phone) return '+91 ******0000';
+    const clean = phone.replace(/\D/g, '');
+    if (clean.length < 4) return 'Protected';
+    return `+91 ******${clean.slice(-4)}`;
+  }
+
+  /**
    * PUBLIC endpoint: Retrieve live technician tracking and job status by secure token
+   * Enforces session expiration check and PII masking
    */
   async getPublicTrackingInfo(token: string) {
     const session = await this.prisma.customerTrackingSession.findFirst({
       where: {
         secureToken: token,
         isActive: true,
+        expiresAt: { gt: new Date() },
       },
       include: {
         workOrder: {
@@ -79,6 +108,11 @@ export class TrackingService {
     const { workOrder } = session;
     const tech = workOrder.technician;
 
+    // Mask PII: locality only (no exact flat/door number exposed on public link)
+    const locality = workOrder.customerAddress
+      ? `${workOrder.customerAddress.city || 'Service Area'}, PIN ${workOrder.customerAddress.postalCode || ''}`
+      : 'Service Location';
+
     return {
       workOrderNumber: workOrder.workOrderNumber,
       title: workOrder.title,
@@ -87,18 +121,16 @@ export class TrackingService {
       timeSlot: workOrder.timeSlot,
       etaMinutes: session.etaMinutes || 20,
       customer: {
-        name: workOrder.customer.name,
-        address: workOrder.customerAddress
-          ? `${workOrder.customerAddress.street}, ${workOrder.customerAddress.city}`
-          : 'Service Location',
+        name: this.maskName(workOrder.customer?.name),
+        address: locality,
         latitude: workOrder.customerAddress?.latitude ? Number(workOrder.customerAddress.latitude) : 12.9716,
         longitude: workOrder.customerAddress?.longitude ? Number(workOrder.customerAddress.longitude) : 77.5946,
       },
       technician: tech
         ? {
-            name: `${tech.user.firstName} ${tech.user.lastName}`,
+            name: `${tech.user.firstName} ${tech.user.lastName[0]}.`,
             code: tech.technicianCode,
-            phone: tech.phone,
+            phone: this.maskPhone(tech.phone),
             rating: Number(tech.rating),
             status: tech.currentStatus,
             currentLocation: {
@@ -121,7 +153,11 @@ export class TrackingService {
    */
   async rescheduleFromTracking(token: string, dto: RescheduleJobPublicDto) {
     const session = await this.prisma.customerTrackingSession.findFirst({
-      where: { secureToken: token, isActive: true },
+      where: {
+        secureToken: token,
+        isActive: true,
+        expiresAt: { gt: new Date() },
+      },
       include: {
         workOrder: {
           include: {
@@ -187,7 +223,7 @@ export class TrackingService {
     workOrderId: string,
     dto: UpdateTechnicianLocationDto,
   ) {
-    const session = await this.getOrCreateSession(workOrderId);
+    const session = await this.getOrCreateSession(organizationId, workOrderId);
 
     return this.prisma.customerTrackingSession.update({
       where: { id: session.id },

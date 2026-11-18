@@ -1,7 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
-import { APP_INTERCEPTOR } from '@nestjs/core';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { APP_INTERCEPTOR, APP_GUARD } from '@nestjs/core';
 import { DatabaseModule } from './infrastructure/database/database.module';
 import { RedisModule } from './infrastructure/redis/redis.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -34,6 +35,12 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
       envFilePath: ['.env', '../../.env'],
     }),
     ScheduleModule.forRoot(),
+    ThrottlerModule.forRoot([
+      {
+        ttl: 60000,
+        limit: 120, // 120 requests per minute baseline
+      },
+    ]),
     DatabaseModule,
     RedisModule,
     AuthModule,
@@ -62,6 +69,10 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
     {
       provide: APP_INTERCEPTOR,
       useClass: AuditInterceptor,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
     },
   ],
 })

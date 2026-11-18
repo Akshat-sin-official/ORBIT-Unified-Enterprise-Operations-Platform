@@ -24,28 +24,46 @@ export class ContractsCronService {
       const targetDate = new Date();
       targetDate.setDate(targetDate.getDate() + 14);
 
-      const dueSchedules = await this.prisma.maintenanceSchedule.findMany({
-        where: {
-          status: ScheduleVisitStatus.SCHEDULED,
-          dueDate: { lte: targetDate },
-          contract: { status: ContractStatus.ACTIVE },
-        },
-        include: { contract: true },
-      });
+      // Memory-safe chunked batching (prevents Node.js heap OOM crashes at scale)
+      const BATCH_SIZE = 50;
+      let totalGenerated = 0;
+      let hasMore = true;
 
-      this.logger.log(`Found ${dueSchedules.length} pending PPM schedule visits due within 14 days.`);
+      while (hasMore) {
+        const dueBatch = await this.prisma.maintenanceSchedule.findMany({
+          where: {
+            status: ScheduleVisitStatus.SCHEDULED,
+            dueDate: { lte: targetDate },
+            contract: { status: ContractStatus.ACTIVE },
+          },
+          include: { contract: true },
+          take: BATCH_SIZE,
+        });
 
-      for (const item of dueSchedules) {
-        try {
-          await this.contractsService.generatePreventiveWorkOrder(
-            item.contract.organizationId,
-            item.id,
-          );
-          this.logger.log(`Generated WO for Contract ${item.contract.contractNumber} Visit #${item.visitSequence}`);
-        } catch (err: any) {
-          this.logger.error(`Failed to generate WO for schedule ${item.id}: ${err.message}`);
+        if (dueBatch.length === 0) {
+          hasMore = false;
+          break;
+        }
+
+        for (const item of dueBatch) {
+          try {
+            await this.contractsService.generatePreventiveWorkOrder(
+              item.contract.organizationId,
+              item.id,
+            );
+            totalGenerated++;
+          } catch (err: any) {
+            this.logger.error(`Failed to generate WO for schedule ${item.id}: ${err.message}`);
+          }
+        }
+
+        // If batch was smaller than batch size, we've exhausted all due schedules
+        if (dueBatch.length < BATCH_SIZE) {
+          hasMore = false;
         }
       }
+
+      this.logger.log(`Completed PPM generation scan. Total work orders created: ${totalGenerated}`);
     } catch (error: any) {
       this.logger.error(`Error in PPM generation cron: ${error.message}`);
     }

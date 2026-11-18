@@ -3,6 +3,7 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
+import * as crypto from 'crypto';
 import { PrismaService } from '../../infrastructure/database/prisma.service';
 import {
   RecordPartSwapDto,
@@ -34,10 +35,11 @@ export class RmaService {
     });
     if (!wo) throw new NotFoundException('Work order not found');
 
-    // Generate unique sequential RMA Barcode (e.g., RMA-2026-0042)
+    // Generate unique sequential RMA Barcode with entropy to prevent race conditions
     const count = await this.prisma.serializedPartSwap.count({ where: { organizationId } });
     const year = new Date().getFullYear();
-    const rmaBarcode = `RMA-${year}-${(count + 1).toString().padStart(4, '0')}`;
+    const entropy = crypto.randomBytes(2).toString('hex').toUpperCase();
+    const rmaBarcode = `RMA-${year}-${(count + 1).toString().padStart(4, '0')}-${entropy}`;
 
     const swap = await this.prisma.serializedPartSwap.create({
       data: {

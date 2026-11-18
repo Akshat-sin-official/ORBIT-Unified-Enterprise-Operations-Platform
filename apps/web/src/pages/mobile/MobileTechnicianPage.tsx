@@ -263,13 +263,18 @@ export const MobileTechnicianPage: React.FC = () => {
   const handleCompleteSignoff = async () => {
     if (!selectedJob) return;
 
+    if (!otpCode || otpCode.trim().length !== 6) {
+      toast.error('Please enter the valid 6-digit customer verification OTP');
+      return;
+    }
+
     let signatureDataUrl = '';
     if (canvasRef.current && hasSignature) {
       signatureDataUrl = canvasRef.current.toDataURL('image/png');
     }
 
     const payload = {
-      otp: otpCode || '123456',
+      otp: otpCode.trim(),
       feedback: customerFeedback,
       signatureData: signatureDataUrl,
       completedAt: new Date().toISOString(),

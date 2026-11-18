@@ -3,6 +3,7 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
+import * as crypto from 'crypto';
 import { PrismaService } from '../../infrastructure/database/prisma.service';
 import { WhatsAppService } from '../whatsapp/whatsapp.service';
 import {
@@ -38,7 +39,7 @@ export class FieldServiceService {
     });
     if (existing) return existing.secureToken;
 
-    const secureToken = Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10);
+    const secureToken = crypto.randomBytes(16).toString('hex');
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 3);
 
@@ -183,10 +184,11 @@ export class FieldServiceService {
       addressId = def.id;
     }
 
-    // 2. Generate Work Order number
+    // 2. Generate Work Order number with entropy to prevent race conditions
     const count = await this.prisma.workOrder.count({ where: { organizationId } });
     const year = new Date().getFullYear();
-    const workOrderNumber = `WO-${year}-${(count + 1001).toString().padStart(4, '0')}`;
+    const entropy = crypto.randomBytes(2).toString('hex').toUpperCase();
+    const workOrderNumber = `WO-${year}-${(count + 1001).toString().padStart(4, '0')}-${entropy}`;
 
     // 3. Generate 6-digit Customer OTP
     const customerOtp = Math.floor(100000 + Math.random() * 900000).toString();
@@ -673,9 +675,9 @@ export class FieldServiceService {
   ) {
     const wo = await this.getWorkOrder(organizationId, workOrderId);
 
-    // Verify OTP (allow actual OTP or master demo OTP 882104)
-    if (wo.customerOtp && wo.customerOtp !== dto.otp && dto.otp !== '882104') {
-      throw new BadRequestException('Invalid customer OTP. Please check code with customer.');
+    // Strict customer OTP verification (no hardcoded backdoor, zero-trust enforcement)
+    if (!wo.customerOtp || wo.customerOtp.trim() !== dto.otp.trim()) {
+      throw new BadRequestException('Invalid customer OTP. Please check the 6-digit verification code with the customer.');
     }
 
     const now = new Date();
@@ -820,7 +822,8 @@ export class FieldServiceService {
         const custId = completed.customerId || completed.customer.id;
         const count = await this.prisma.invoice.count({ where: { organizationId } });
         const seq = String(count + 1).padStart(4, '0');
-        const invoiceNumber = `INV-2026-${seq}`;
+        const entropy = crypto.randomBytes(2).toString('hex').toUpperCase();
+        const invoiceNumber = `INV-${new Date().getFullYear()}-${seq}-${entropy}`;
 
         let subtotal = 0;
         let taxAmount = 0;

@@ -38,21 +38,35 @@ export class ProofOfWorkService {
 
     let fileUrl = '';
     const now = new Date();
+    const safeWoNum = wo.workOrderNumber.replace(/[^a-zA-Z0-9_-]/g, '');
+
+    const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp'];
+    const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
 
     if (file) {
-      const ext = path.extname(file.originalname) || '.jpg';
-      const filename = `proof-${wo.workOrderNumber}-${Date.now()}${ext}`;
+      if (file.size > MAX_FILE_SIZE) {
+        throw new BadRequestException('File size exceeds the 5MB upload limit.');
+      }
+      const ext = (path.extname(file.originalname) || '.jpg').toLowerCase();
+      if (!ALLOWED_EXTENSIONS.includes(ext)) {
+        throw new BadRequestException(`Unsupported file extension. Allowed formats: ${ALLOWED_EXTENSIONS.join(', ')}`);
+      }
+
+      const filename = `proof-${safeWoNum}-${Date.now()}${ext}`;
       const destPath = path.join(this.uploadDir, filename);
-      fs.writeFileSync(destPath, file.buffer);
+      await fs.promises.writeFile(destPath, file.buffer);
       fileUrl = `/uploads/proof/${filename}`;
     } else if (dto.fileData) {
       if (dto.fileData.startsWith('data:image')) {
         const matches = dto.fileData.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
         if (matches && matches.length === 3) {
           const buffer = Buffer.from(matches[2], 'base64');
-          const filename = `proof-${wo.workOrderNumber}-${Date.now()}.png`;
+          if (buffer.length > MAX_FILE_SIZE) {
+            throw new BadRequestException('Base64 image size exceeds the 5MB limit.');
+          }
+          const filename = `proof-${safeWoNum}-${Date.now()}.png`;
           const destPath = path.join(this.uploadDir, filename);
-          fs.writeFileSync(destPath, buffer);
+          await fs.promises.writeFile(destPath, buffer);
           fileUrl = `/uploads/proof/${filename}`;
         } else {
           fileUrl = dto.fileData;
@@ -97,13 +111,15 @@ export class ProofOfWorkService {
     if (!wo) throw new NotFoundException('Work order not found');
 
     let fileUrl = dto.signatureDataUrl;
+    const safeWoNum = wo.workOrderNumber.replace(/[^a-zA-Z0-9_-]/g, '');
+
     if (dto.signatureDataUrl.startsWith('data:image')) {
       const matches = dto.signatureDataUrl.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
       if (matches && matches.length === 3) {
         const buffer = Buffer.from(matches[2], 'base64');
-        const filename = `sig-${wo.workOrderNumber}-${Date.now()}.png`;
+        const filename = `sig-${safeWoNum}-${Date.now()}.png`;
         const destPath = path.join(this.uploadDir, filename);
-        fs.writeFileSync(destPath, buffer);
+        await fs.promises.writeFile(destPath, buffer);
         fileUrl = `/uploads/proof/${filename}`;
       }
     }

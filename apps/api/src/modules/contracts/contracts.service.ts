@@ -3,6 +3,7 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
+import * as crypto from 'crypto';
 import { PrismaService } from '../../infrastructure/database/prisma.service';
 import { CreateContractDto, QueryContractDto } from './dto/contract.dto';
 import {
@@ -31,7 +32,8 @@ export class ContractsService {
 
     const count = await this.prisma.maintenanceContract.count({ where: { organizationId } });
     const year = new Date().getFullYear();
-    const contractNumber = `AMC-${year}-${(count + 1).toString().padStart(4, '0')}`;
+    const entropy = crypto.randomBytes(2).toString('hex').toUpperCase();
+    const contractNumber = `AMC-${year}-${(count + 1).toString().padStart(4, '0')}-${entropy}`;
 
     const visitsCount = dto.visitsIncluded || 4;
     const intervalDays = dto.visitIntervalDays || 90;
@@ -236,7 +238,8 @@ export class ContractsService {
     const { contract } = schedule;
     const count = await this.prisma.workOrder.count({ where: { organizationId } });
     const year = new Date().getFullYear();
-    const workOrderNumber = `WO-${year}-${(count + 1001).toString().padStart(4, '0')}`;
+    const entropy = crypto.randomBytes(2).toString('hex').toUpperCase();
+    const workOrderNumber = `WO-${year}-${(count + 1001).toString().padStart(4, '0')}-${entropy}`;
     const customerOtp = Math.floor(100000 + Math.random() * 900000).toString();
 
     const customerAddress =

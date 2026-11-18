@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { DatabaseModule } from './infrastructure/database/database.module';
 import { RedisModule } from './infrastructure/redis/redis.module';
@@ -18,6 +19,12 @@ import { SmtpModule } from './modules/smtp/smtp.module';
 import { WhatsAppModule } from './modules/whatsapp/whatsapp.module';
 import { NotificationModule } from './modules/notifications/notifications.module';
 import { CopilotModule } from './modules/copilot/copilot.module';
+import { DispatchModule } from './modules/dispatch/dispatch.module';
+import { RmaModule } from './modules/rma/rma.module';
+import { ContractsModule } from './modules/contracts/contracts.module';
+import { ProofOfWorkModule } from './modules/proof-of-work/proof-of-work.module';
+import { TrackingModule } from './modules/tracking/tracking.module';
+import { PartnersModule } from './modules/partners/partners.module';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 
 @Module({
@@ -26,6 +33,7 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
       isGlobal: true,
       envFilePath: ['.env', '../../.env'],
     }),
+    ScheduleModule.forRoot(),
     DatabaseModule,
     RedisModule,
     AuthModule,
@@ -43,6 +51,12 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
     WhatsAppModule,
     NotificationModule,
     CopilotModule,
+    DispatchModule,
+    RmaModule,
+    ContractsModule,
+    ProofOfWorkModule,
+    TrackingModule,
+    PartnersModule,
   ],
   providers: [
     {

@@ -15,6 +15,11 @@ import { TicketsPage } from '@/pages/service-desk/TicketsPage';
 import { TicketDetailPage } from '@/pages/service-desk/TicketDetailPage';
 import { WorkOrdersPage } from '@/pages/field-service/WorkOrdersPage';
 import { WorkOrderDetailPage } from '@/pages/field-service/WorkOrderDetailPage';
+import { DispatchBoardPage } from '@/pages/dispatch/DispatchBoardPage';
+import { ContractsPage } from '@/pages/contracts/ContractsPage';
+import { RmaConsolePage } from '@/pages/rma/RmaConsolePage';
+import { PartnersPage } from '@/pages/partners/PartnersPage';
+import { PublicTrackingPage } from '@/pages/tracking/PublicTrackingPage';
 import { InventoryPage } from '@/pages/inventory/InventoryPage';
 import { LogisticsPage } from '@/pages/logistics/LogisticsPage';
 import { FinancePage } from '@/pages/finance/FinancePage';
@@ -54,6 +59,9 @@ export const AppRoutes: React.FC = () => {
         }
       />
 
+      {/* Public Customer Self-Service Tracking (No Login Required) */}
+      <Route path="/track/:token" element={<PublicTrackingPage />} />
+
       <Route
         path="/"
         element={
@@ -71,7 +79,11 @@ export const AppRoutes: React.FC = () => {
         <Route path="operations/tickets/:id" element={<TicketDetailPage />} />
         <Route path="operations/work-orders" element={<WorkOrdersPage />} />
         <Route path="operations/work-orders/:id" element={<WorkOrderDetailPage />} />
+        <Route path="operations/dispatch" element={<DispatchBoardPage />} />
+        <Route path="operations/contracts" element={<ContractsPage />} />
         <Route path="management/inventory" element={<InventoryPage />} />
+        <Route path="management/rma" element={<RmaConsolePage />} />
+        <Route path="management/partners" element={<PartnersPage />} />
         <Route path="management/logistics" element={<LogisticsPage />} />
         <Route path="management/finance" element={<FinancePage />} />
         <Route path="management/analytics" element={<AnalyticsPage />} />

@@ -72,6 +72,10 @@ model Organization {
   geminiApiKey         String?        @map("gemini_api_key")
   notificationSettings NotificationSetting[]
   inAppNotifications   InAppNotification[]
+  serializedPartSwaps  SerializedPartSwap[]
+  maintenanceContracts MaintenanceContract[]
+  contractorPartners   ContractorPartner[]
+  aspSettlements       AspSettlement[]
 
   @@index([status])
   @@map("organizations")
@@ -322,6 +326,7 @@ model Customer {
   tickets       Ticket[]
   workOrders    WorkOrder[]
   invoices      Invoice[]
+  maintenanceContracts MaintenanceContract[]
 
   @@unique([organizationId, customerCode])
   @@index([organizationId])
@@ -342,6 +347,8 @@ model CustomerAddress {
   state       String
   postalCode  String      @map("postal_code")
   country     String      @default("India")
+  latitude    Decimal?    @db.Decimal(10, 6)
+  longitude   Decimal?    @db.Decimal(10, 6)
   isDefault   Boolean     @default(false) @map("is_default")
   createdAt   DateTime    @default(now()) @map("created_at")
 
@@ -409,6 +416,7 @@ model Product {
   registrations ProductRegistration[]
   tickets       Ticket[]
   workOrders    WorkOrder[]
+  maintenanceContracts MaintenanceContract[]
 
   @@unique([organizationId, sku])
   @@index([organizationId])
@@ -674,6 +682,7 @@ model Technician {
   phone          String
   currentStatus  TechnicianStatus @default(AVAILABLE) @map("current_status")
   skills         String[]
+  servicePincodes String[]        @map("service_pincodes")
   serviceZone    String           @map("service_zone")
   maxDailyJobs   Int              @default(5) @map("max_daily_jobs")
   rating         Decimal          @default(5.0) @db.Decimal(3, 2)
@@ -745,6 +754,10 @@ model WorkOrder {
   stockMovements  StockMovement[]
   shipments       Shipment[]
   invoices        Invoice[]
+  partSwaps       SerializedPartSwap[]
+  proofMedia      ProofOfWorkMedia[]
+  trackingSessions CustomerTrackingSession[]
+  maintenanceSchedules MaintenanceSchedule[]
 
   @@unique([organizationId, workOrderNumber])
   @@index([organizationId])
@@ -834,6 +847,8 @@ model Warehouse {
   state          String
   postalCode     String        @map("postal_code")
   country        String        @default("India")
+  latitude       Decimal?      @db.Decimal(10, 6)
+  longitude      Decimal?      @db.Decimal(10, 6)
   isActive       Boolean       @default(true) @map("is_active")
   createdAt      DateTime      @default(now()) @map("created_at")
   updatedAt      DateTime      @updatedAt @map("updated_at")
@@ -912,6 +927,7 @@ model Part {
   purchaseOrderItems PurchaseOrderItem[]
   shipmentItems      ShipmentItem[]
   invoiceItems       InvoiceItem[]
+  partSwaps          SerializedPartSwap[]
 
   @@unique([organizationId, partNumber])
   @@index([organizationId])
@@ -1369,6 +1385,268 @@ model InAppNotification {
   @@map("in_app_notifications")
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// PHASE 2: RMA — Serialized Defective Part Exchange
+// ══════════════════════════════════════════════════════════════════════════════
+
+enum RmaStatus {
+  WITH_TECH
+  IN_TRANSIT
+  RECEIVED_AT_DEPOT
+  AUDIT_PASSED
+  AUDIT_FAILED
+}
+
+model SerializedPartSwap {
+  id                      String    @id @default(uuid()) @db.Uuid
+  organizationId          String    @map("organization_id") @db.Uuid
+  workOrderId             String    @map("work_order_id") @db.Uuid
+  partId                  String?   @map("part_id") @db.Uuid
+  defectiveSerialNumber   String    @map("defective_serial_number")
+  replacementSerialNumber String    @map("replacement_serial_number")
+  rmaBarcode              String    @map("rma_barcode")
+  rmaStatus               RmaStatus @default(WITH_TECH) @map("rma_status")
+  auditNotes              String?   @map("audit_notes")
+  receivedAt              DateTime? @map("received_at")
+  auditedAt               DateTime? @map("audited_at")
+  createdAt               DateTime  @default(now()) @map("created_at")
+  updatedAt               DateTime  @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workOrder    WorkOrder    @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  part         Part?        @relation(fields: [partId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, rmaBarcode])
+  @@index([organizationId])
+  @@index([workOrderId])
+  @@index([rmaStatus])
+  @@map("serialized_part_swaps")
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PHASE 3: AMC / CMC & Preventive Maintenance Contracts
+// ══════════════════════════════════════════════════════════════════════════════
+
+enum ContractType {
+  BASIC_AMC
+  COMPREHENSIVE_CMC
+  PREVENTIVE_PPM
+}
+
+enum ContractStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+  PENDING_RENEWAL
+}
+
+enum ScheduleVisitStatus {
+  SCHEDULED
+  GENERATED
+  COMPLETED
+  SKIPPED
+}
+
+model MaintenanceContract {
+  id               String         @id @default(uuid()) @db.Uuid
+  organizationId   String         @map("organization_id") @db.Uuid
+  customerId       String         @map("customer_id") @db.Uuid
+  productId        String?        @map("product_id") @db.Uuid
+  serialNumber     String?        @map("serial_number")
+  contractNumber   String         @map("contract_number")
+  contractType     ContractType   @default(BASIC_AMC) @map("contract_type")
+  startDate        DateTime       @map("start_date")
+  endDate          DateTime       @map("end_date")
+  visitsIncluded   Int            @default(4) @map("visits_included")
+  visitsCompleted  Int            @default(0) @map("visits_completed")
+  visitIntervalDays Int           @default(90) @map("visit_interval_days")
+  amountPaid       Decimal        @default(0) @db.Decimal(12, 2) @map("amount_paid")
+  status           ContractStatus @default(ACTIVE)
+  notes            String?
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
+
+  organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer     Customer              @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  product      Product?              @relation(fields: [productId], references: [id], onDelete: SetNull)
+  schedules    MaintenanceSchedule[]
+
+  @@unique([organizationId, contractNumber])
+  @@index([organizationId])
+  @@index([customerId])
+  @@index([status])
+  @@index([endDate])
+  @@map("maintenance_contracts")
+}
+
+model MaintenanceSchedule {
+  id              String              @id @default(uuid()) @db.Uuid
+  contractId      String              @map("contract_id") @db.Uuid
+  visitSequence   Int                 @map("visit_sequence")
+  dueDate         DateTime            @map("due_date")
+  workOrderId     String?             @map("work_order_id") @db.Uuid
+  status          ScheduleVisitStatus @default(SCHEDULED)
+  completedAt     DateTime?           @map("completed_at")
+  createdAt       DateTime            @default(now()) @map("created_at")
+
+  contract  MaintenanceContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  workOrder WorkOrder?          @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
+
+  @@unique([contractId, visitSequence])
+  @@index([contractId])
+  @@index([dueDate])
+  @@index([status])
+  @@map("maintenance_schedules")
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PHASE 4: Proof of Work — Photo Watermark & Signature
+// ══════════════════════════════════════════════════════════════════════════════
+
+enum ProofMediaType {
+  BEFORE_REPAIR
+  DEFECTIVE_PART
+  AFTER_REPAIR
+  SIGNATURE
+}
+
+model ProofOfWorkMedia {
+  id            String         @id @default(uuid()) @db.Uuid
+  workOrderId   String         @map("work_order_id") @db.Uuid
+  mediaType     ProofMediaType @map("media_type")
+  fileUrl       String         @map("file_url")
+  latitude      Decimal?       @db.Decimal(10, 6)
+  longitude     Decimal?       @db.Decimal(10, 6)
+  capturedAt    DateTime       @default(now()) @map("captured_at")
+  watermarkText String?        @map("watermark_text")
+  createdAt     DateTime       @default(now()) @map("created_at")
+
+  workOrder WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+
+  @@index([workOrderId])
+  @@map("proof_of_work_media")
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PHASE 5: Customer Live Tracking
+// ══════════════════════════════════════════════════════════════════════════════
+
+model CustomerTrackingSession {
+  id              String    @id @default(uuid()) @db.Uuid
+  workOrderId     String    @map("work_order_id") @db.Uuid
+  secureToken     String    @unique @map("secure_token")
+  technicianLat   Decimal?  @map("technician_lat") @db.Decimal(10, 6)
+  technicianLng   Decimal?  @map("technician_lng") @db.Decimal(10, 6)
+  etaMinutes      Int?      @map("eta_minutes")
+  isActive        Boolean   @default(true) @map("is_active")
+  expiresAt       DateTime  @map("expires_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  workOrder WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+
+  @@index([workOrderId])
+  @@index([secureToken])
+  @@map("customer_tracking_sessions")
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PHASE 6: Franchisee & ASP Partner Settlements
+// ══════════════════════════════════════════════════════════════════════════════
+
+enum PartnerTier {
+  PLATINUM
+  GOLD
+  SILVER
+  BRONZE
+}
+
+enum PartnerStatus {
+  ACTIVE
+  SUSPENDED
+  TERMINATED
+}
+
+enum SettlementStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  PAID
+  DISPUTED
+}
+
+model ContractorPartner {
+  id              String        @id @default(uuid()) @db.Uuid
+  organizationId  String        @map("organization_id") @db.Uuid
+  partnerCode     String        @map("partner_code")
+  companyName     String        @map("company_name")
+  contactName     String        @map("contact_name")
+  email           String
+  phone           String
+  region          String
+  tier            PartnerTier   @default(SILVER)
+  status          PartnerStatus @default(ACTIVE)
+  gstNumber       String?       @map("gst_number")
+  bankAccountInfo Json?         @map("bank_account_info") @db.JsonB
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  rateCards    AspRateCard[]
+  settlements  AspSettlement[]
+
+  @@unique([organizationId, partnerCode])
+  @@index([organizationId])
+  @@index([status])
+  @@map("contractor_partners")
+}
+
+model AspRateCard {
+  id                  String   @id @default(uuid()) @db.Uuid
+  partnerId           String   @map("partner_id") @db.Uuid
+  productCategory     String   @map("product_category")
+  labourAllowance     Decimal  @map("labour_allowance") @db.Decimal(10, 2)
+  tatBonusPercent     Decimal  @default(0) @map("tat_bonus_percent") @db.Decimal(5, 2)
+  rcrPenaltyPercent   Decimal  @default(0) @map("rcr_penalty_percent") @db.Decimal(5, 2)
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  partner ContractorPartner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@unique([partnerId, productCategory])
+  @@index([partnerId])
+  @@map("asp_rate_cards")
+}
+
+model AspSettlement {
+  id                     String           @id @default(uuid()) @db.Uuid
+  organizationId         String           @map("organization_id") @db.Uuid
+  partnerId              String           @map("partner_id") @db.Uuid
+  settlementNumber       String           @map("settlement_number")
+  periodStart            DateTime         @map("period_start")
+  periodEnd              DateTime         @map("period_end")
+  totalJobsCompleted     Int              @default(0) @map("total_jobs_completed")
+  grossLabourEarned      Decimal          @default(0) @map("gross_labour_earned") @db.Decimal(12, 2)
+  tatBonusAmount         Decimal          @default(0) @map("tat_bonus_amount") @db.Decimal(12, 2)
+  rcrPenaltyAmount       Decimal          @default(0) @map("rcr_penalty_amount") @db.Decimal(12, 2)
+  netPayable             Decimal          @default(0) @map("net_payable") @db.Decimal(12, 2)
+  status                 SettlementStatus @default(DRAFT)
+  approvedById           String?          @map("approved_by_id") @db.Uuid
+  approvedAt             DateTime?        @map("approved_at")
+  notes                  String?
+  lineItems              Json?            @map("line_items") @db.JsonB
+  createdAt              DateTime         @default(now()) @map("created_at")
+  updatedAt              DateTime         @updatedAt @map("updated_at")
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  partner      ContractorPartner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, settlementNumber])
+  @@index([organizationId])
+  @@index([partnerId])
+  @@index([status])
+  @@map("asp_settlements")
+}
 
 
 

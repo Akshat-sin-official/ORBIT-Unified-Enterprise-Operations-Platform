@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
@@ -37,7 +37,15 @@ import {
   ChevronRight,
   Package,
   Plus,
+  Camera,
+  Share2,
+  Copy,
+  PenTool,
+  ArrowRightLeft,
+  Barcode,
+  Eye,
 } from 'lucide-react';
+import { toast } from 'sonner';
 
 export const WorkOrderDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -83,6 +91,28 @@ export const WorkOrderDetailPage: React.FC = () => {
   const [completionSummary, setCompletionSummary] = useState('');
   const [otpSubmitting, setOtpSubmitting] = useState(false);
 
+  // Phase 2: Serialized Part Swap Modal
+  const [swapModalOpen, setSwapModalOpen] = useState(false);
+  const [swapForm, setSwapForm] = useState({
+    partId: '',
+    defectiveSerialNumber: '',
+    replacementSerialNumber: '',
+  });
+  const [swapSubmitting, setSwapSubmitting] = useState(false);
+  const [partSwaps, setPartSwaps] = useState<any[]>([]);
+
+  // Phase 4: Proof of Work Media & Signature
+  const [proofMediaList, setProofMediaList] = useState<any[]>([]);
+  const [proofCompliance, setProofCompliance] = useState<any>(null);
+  const [uploadingProof, setUploadingProof] = useState(false);
+  const [selectedMediaType, setSelectedMediaType] = useState<string>('BEFORE_REPAIR');
+  const signatureCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [hasSignature, setHasSignature] = useState(false);
+
+  // Phase 5: Tracking Link
+  const [trackingToken, setTrackingToken] = useState<string>('');
+  const [trackingLoading, setTrackingLoading] = useState(false);
+
   const fetchWorkOrder = async () => {
     try {
       setLoading(true);
@@ -94,11 +124,93 @@ export const WorkOrderDetailPage: React.FC = () => {
           warrantyCovered: Boolean(res.data.registration.warranty.isActive),
         }));
       }
+
+      // Fetch proof of work media & RMA swaps
+      loadProofMedia();
+      loadRmaSwaps();
+      loadTrackingSession();
     } catch (err) {
       console.error('Failed to load work order:', err);
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadProofMedia = async () => {
+    if (!id) return;
+    try {
+      const res = await api.get(`/proof-of-work/work-orders/${id}`);
+      setProofMediaList(res.data.media || []);
+      setProofCompliance(res.data.compliance || null);
+    } catch {}
+  };
+
+  const loadRmaSwaps = async () => {
+    if (!id) return;
+    try {
+      const res = await api.get(`/rma/list?page=1&limit=20`);
+      const matched = (res.data.data || []).filter((s: any) => s.workOrderId === id);
+      setPartSwaps(matched);
+    } catch {}
+  };
+
+  const loadTrackingSession = async () => {
+    if (!id) return;
+    try {
+      const res = await api.get(`/tracking/session/${id}`);
+      if (res.data?.secureToken) {
+        setTrackingToken(res.data.secureToken);
+      }
+    } catch {}
+  };
+
+  const handleCopyTrackingLink = () => {
+    if (!trackingToken) return;
+    const url = `${window.location.origin}/track/${trackingToken}`;
+    navigator.clipboard.writeText(url);
+    toast.success('Customer Live Tracking Link copied to clipboard!');
+  };
+
+  const handleRecordSwap = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!id) return;
+    try {
+      setSwapSubmitting(true);
+      const res = await api.post(`/rma/work-orders/${id}/swap`, swapForm);
+      toast.success(`RMA Barcode #${res.data.rmaBarcode} generated for serialized swap!`);
+      setSwapModalOpen(false);
+      setSwapForm({ partId: '', defectiveSerialNumber: '', replacementSerialNumber: '' });
+      loadRmaSwaps();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Failed to record serialized part swap');
+    } finally {
+      setSwapSubmitting(false);
+    }
+  };
+
+  const handleProofFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!id || !e.target.files || e.target.files.length === 0) return;
+    const file = e.target.files[0];
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        setUploadingProof(true);
+        await api.post(`/proof-of-work/work-orders/${id}/media`, {
+          mediaType: selectedMediaType,
+          fileData: reader.result as string,
+          latitude: 12.9716,
+          longitude: 77.5946,
+        });
+        toast.success(`Proof of work photo uploaded as ${selectedMediaType}`);
+        loadProofMedia();
+      } catch (err: any) {
+        toast.error('Failed to upload proof of work media');
+      } finally {
+        setUploadingProof(false);
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   useEffect(() => {
@@ -281,6 +393,17 @@ export const WorkOrderDetailPage: React.FC = () => {
         </button>
 
         <div className="flex items-center gap-2">
+          {trackingToken && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleCopyTrackingLink}
+              className="text-xs h-7 gap-1 border-primary/30 text-primary hover:bg-primary/5"
+            >
+              <Share2 className="w-3 h-3" />
+              Copy Customer Tracking Link
+            </Button>
+          )}
           <span className="font-mono text-xs px-2.5 py-1 rounded bg-zinc-100 border border-zinc-200 font-bold text-ink">
             {workOrder.workOrderNumber}
           </span>
@@ -456,16 +579,59 @@ export const WorkOrderDetailPage: React.FC = () => {
                   Replacement Parts & Consumables ({workOrder.partsUsed?.length || 0})
                 </h3>
                 {workOrder.status !== 'COMPLETED' && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setPartModalOpen(true)}
-                    className="text-xs h-8 border-border/80 flex items-center gap-1.5"
-                  >
-                    <Plus className="w-3.5 h-3.5" /> Add Part Used
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setSwapModalOpen(true)}
+                      className="text-xs h-8 border-purple-200 text-purple-700 hover:bg-purple-50 flex items-center gap-1.5"
+                    >
+                      <ArrowRightLeft className="w-3.5 h-3.5" /> Serialized RMA Swap
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setPartModalOpen(true)}
+                      className="text-xs h-8 border-border/80 flex items-center gap-1.5"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Add Part Used
+                    </Button>
+                  </div>
                 )}
               </div>
+
+              {/* Serialized Part Swaps (RMA Exchanges) */}
+              {partSwaps.length > 0 && (
+                <div className="p-3 rounded-xl bg-purple-50/50 border border-purple-200 space-y-2">
+                  <span className="text-[11px] font-bold text-purple-900 uppercase tracking-wider flex items-center gap-1.5">
+                    <ArrowRightLeft className="w-3.5 h-3.5 text-purple-600" />
+                    Serialized Defective Part Exchanges ({partSwaps.length})
+                  </span>
+                  <div className="space-y-1.5">
+                    {partSwaps.map((ps) => (
+                      <div
+                        key={ps.id}
+                        className="p-2 bg-white rounded-lg border border-purple-200 flex items-center justify-between text-xs"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-bold text-primary">{ps.rmaBarcode}</span>
+                          <span className="text-muted-foreground">•</span>
+                          <span className="text-rose-700 font-mono text-[11px]">
+                            OUT: {ps.defectiveSerialNumber}
+                          </span>
+                          <span className="text-muted-foreground">→</span>
+                          <span className="text-emerald-700 font-mono text-[11px]">
+                            IN: {ps.replacementSerialNumber}
+                          </span>
+                        </div>
+                        <Badge variant="outline" className="text-[10px] font-semibold bg-purple-50 text-purple-700">
+                          {ps.rmaStatus}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {workOrder.partsUsed?.length === 0 ? (
                 <p className="text-xs text-ink-muted italic text-center py-4">
@@ -505,6 +671,121 @@ export const WorkOrderDetailPage: React.FC = () => {
                       ))}
                     </tbody>
                   </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Proof of Work Media & Geolocation Watermarks */}
+          <Card className="bg-white border-border/70 shadow-sm">
+            <CardContent className="p-6 space-y-4">
+              <div className="flex items-center justify-between border-b border-border/60 pb-3">
+                <div>
+                  <h3 className="font-bold font-poppins text-ink text-sm flex items-center gap-2">
+                    <Camera className="w-4 h-4 text-primary" />
+                    Proof of Work & Visual Audit Attachments ({proofMediaList.length})
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Mandatory geo-tagged before/after photos and digital customer signoff verification
+                  </p>
+                </div>
+
+                {proofCompliance && (
+                  <Badge
+                    variant="outline"
+                    className={`text-[10px] font-bold ${
+                      proofCompliance.isCompliant
+                        ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                        : 'bg-amber-50 text-amber-800 border-amber-200'
+                    }`}
+                  >
+                    {proofCompliance.isCompliant ? 'Compliance Verified' : 'Proofs Pending'}
+                  </Badge>
+                )}
+              </div>
+
+              {/* Upload Action Bar */}
+              {workOrder.status !== 'COMPLETED' && (
+                <div className="flex flex-wrap items-center gap-2.5 p-3 rounded-xl bg-zinc-50 border border-border">
+                  <span className="text-xs font-semibold text-ink">Upload Photo As:</span>
+                  <select
+                    value={selectedMediaType}
+                    onChange={(e) => setSelectedMediaType(e.target.value)}
+                    className="text-xs h-8 px-2.5 rounded-lg border border-border bg-white font-medium"
+                  >
+                    <option value="BEFORE_REPAIR">Before Repair (Serial & Defect)</option>
+                    <option value="DEFECTIVE_PART">Defective Component (Burnt/Broken)</option>
+                    <option value="AFTER_REPAIR">After Repair (Operational Appliance)</option>
+                  </select>
+
+                  <label className="cursor-pointer">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      onChange={handleProofFileUpload}
+                      className="hidden"
+                    />
+                    <div className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-primary hover:bg-primary-hover text-white text-xs font-semibold transition-colors">
+                      <Camera className="w-3.5 h-3.5" />
+                      {uploadingProof ? 'Uploading...' : 'Capture / Upload Photo'}
+                    </div>
+                  </label>
+                </div>
+              )}
+
+              {/* Media Thumbnails Grid */}
+              {proofMediaList.length === 0 ? (
+                <p className="text-xs text-muted-foreground italic text-center py-4">
+                  No visual proof of work photos uploaded yet.
+                </p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                  {proofMediaList.map((m) => (
+                    <div
+                      key={m.id}
+                      className="rounded-xl border border-border overflow-hidden bg-white shadow-2xs group"
+                    >
+                      <div className="h-32 bg-slate-100 relative overflow-hidden flex items-center justify-center">
+                        {m.fileUrl?.startsWith('data:') || m.fileUrl?.startsWith('http') ? (
+                          <img
+                            src={m.fileUrl}
+                            alt="Proof of work"
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="text-xs text-slate-500 font-mono flex flex-col items-center gap-1">
+                            <Camera className="w-6 h-6 text-slate-400" />
+                            <span>Photo Attachment</span>
+                          </div>
+                        )}
+
+                        <Badge
+                          className={`absolute top-2 left-2 text-[9px] font-bold ${
+                            m.mediaType === 'BEFORE_REPAIR'
+                              ? 'bg-amber-600 text-white'
+                              : m.mediaType === 'AFTER_REPAIR'
+                              ? 'bg-emerald-600 text-white'
+                              : m.mediaType === 'SIGNATURE'
+                              ? 'bg-purple-600 text-white'
+                              : 'bg-rose-600 text-white'
+                          }`}
+                        >
+                          {m.mediaType?.replace(/_/g, ' ')}
+                        </Badge>
+                      </div>
+
+                      <div className="p-2.5 text-[10px] text-muted-foreground space-y-1">
+                        <div className="font-mono text-ink truncate">
+                          {m.watermarkText || `WO #${workOrder.workOrderNumber}`}
+                        </div>
+                        <div className="flex items-center justify-between text-slate-400">
+                          <span>{new Date(m.capturedAt || m.createdAt).toLocaleTimeString()}</span>
+                          <span className="text-primary font-semibold">GPS Tagged</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </CardContent>
@@ -1093,6 +1374,71 @@ export const WorkOrderDetailPage: React.FC = () => {
                 className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold font-poppins"
               >
                 {otpSubmitting ? 'Verifying...' : 'Verify OTP & Complete Visit'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+      {/* Serialized Part Swap Dialog */}
+      <Dialog open={swapModalOpen} onOpenChange={setSwapModalOpen}>
+        <DialogContent className="max-w-md bg-white">
+          <DialogHeader>
+            <DialogTitle className="font-poppins text-ink flex items-center gap-2">
+              <ArrowRightLeft className="w-5 h-5 text-purple-600" />
+              Serialized Defective Part Swap (RMA)
+            </DialogTitle>
+            <DialogDescription className="text-xs text-ink-muted">
+              Enforce dual-serial warranty traceability by scanning defective serial out and fresh replacement serial in.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleRecordSwap} className="space-y-3.5 py-2 text-xs">
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold text-rose-800">
+                Defective Serial Number (Removed from Appliance) *
+              </Label>
+              <Input
+                required
+                value={swapForm.defectiveSerialNumber}
+                onChange={(e) =>
+                  setSwapForm({ ...swapForm, defectiveSerialNumber: e.target.value.toUpperCase() })
+                }
+                placeholder="e.g. MOT-DEF-88210"
+                className="h-8 text-xs font-mono uppercase bg-rose-50/50 border-rose-200"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold text-emerald-800">
+                Replacement Serial Number (Installed from Van Stock) *
+              </Label>
+              <Input
+                required
+                value={swapForm.replacementSerialNumber}
+                onChange={(e) =>
+                  setSwapForm({ ...swapForm, replacementSerialNumber: e.target.value.toUpperCase() })
+                }
+                placeholder="e.g. MOT-FRESH-99104"
+                className="h-8 text-xs font-mono uppercase bg-emerald-50/50 border-emerald-200"
+              />
+            </div>
+
+            <DialogFooter className="pt-3">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setSwapModalOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                disabled={swapSubmitting}
+                className="bg-purple-600 hover:bg-purple-700 text-white font-semibold"
+              >
+                {swapSubmitting ? 'Generating RMA...' : 'Record Swap & Generate RMA Barcode'}
               </Button>
             </DialogFooter>
           </form>

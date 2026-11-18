@@ -84,24 +84,37 @@ export const MobileTechnicianPage: React.FC = () => {
     setLoading(true);
     try {
       if (navigator.onLine) {
-        const res = await api.get('/field-service/work-orders?limit=30');
-        const items = res.data?.items || res.data || [];
+        const res = await api.get('/field-service/work-orders?limit=50');
+        const raw = res.data;
+        const items = Array.isArray(raw)
+          ? raw
+          : Array.isArray(raw?.data)
+          ? raw.data
+          : Array.isArray(raw?.items)
+          ? raw.items
+          : [];
         setJobs(items);
         // Cache all items in IndexedDB
         for (const item of items) {
-          await cacheJobLocally(item);
+          if (item?.id) {
+            await cacheJobLocally(item);
+          }
         }
       } else {
         const cached = await getCachedJobs();
-        if (cached && cached.length > 0) {
+        if (Array.isArray(cached) && cached.length > 0) {
           setJobs(cached);
           toast.info('Loaded cached jobs from offline storage');
+        } else {
+          setJobs([]);
         }
       }
     } catch {
       const cached = await getCachedJobs();
-      if (cached && cached.length > 0) {
+      if (Array.isArray(cached) && cached.length > 0) {
         setJobs(cached);
+      } else {
+        setJobs([]);
       }
     } finally {
       setLoading(false);
@@ -293,9 +306,10 @@ export const MobileTechnicianPage: React.FC = () => {
     setIsSignOffModalOpen(false);
   };
 
-  // Categorize jobs
-  const todayJobs = jobs.filter((j) => j.status !== 'COMPLETED' && j.status !== 'CANCELLED');
-  const completedJobs = jobs.filter((j) => j.status === 'COMPLETED');
+  // Categorize jobs safely with array fallback
+  const safeJobs = Array.isArray(jobs) ? jobs : [];
+  const todayJobs = safeJobs.filter((j) => j && j.status !== 'COMPLETED' && j.status !== 'CANCELLED');
+  const completedJobs = safeJobs.filter((j) => j && j.status === 'COMPLETED');
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 pb-20 select-none">
@@ -406,9 +420,14 @@ export const MobileTechnicianPage: React.FC = () => {
               </div>
             ) : (
               todayJobs.map((job) => {
-                const customer = job.ticket?.customer;
+                const customer = job.customer || job.ticket?.customer;
                 const phone = customer?.phone || '9876543210';
-                const address = customer?.addresses?.[0]?.street || '123 MG Road, Bengaluru';
+                const address = job.customerAddress
+                  ? `${job.customerAddress.street}, ${job.customerAddress.city || ''}`
+                  : customer?.addresses?.[0]?.street || '123 MG Road, Bengaluru';
+                const woNumber = job.workOrderNumber || job.ticket?.ticketNumber || `WO-${job.id?.slice(0, 6) || 'JOB'}`;
+                const productName = job.product?.name || job.ticket?.product?.name || 'Equipment Unit';
+                const issueDetails = job.description || job.title || job.ticket?.description || 'General Maintenance';
 
                 return (
                   <Card
@@ -420,33 +439,33 @@ export const MobileTechnicianPage: React.FC = () => {
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-1.5">
                           <span className="text-xs font-mono font-bold text-slate-900">
-                            {job.ticket?.ticketNumber || `WO-${job.id.slice(0, 6)}`}
+                            {woNumber}
                           </span>
                           <Badge
                             variant="outline"
                             className={`text-[10px] px-1.5 py-0 font-medium ${
-                              job.priority === 'URGENT'
+                              job.priority === 'CRITICAL' || job.priority === 'URGENT'
                                 ? 'bg-red-50 text-red-700 border-red-200'
                                 : job.priority === 'HIGH'
                                 ? 'bg-amber-50 text-amber-700 border-amber-200'
                                 : 'bg-slate-100 text-slate-600 border-slate-200'
                             }`}
                           >
-                            {job.priority || 'NORMAL'}
+                            {job.priority || 'MEDIUM'}
                           </Badge>
                         </div>
                         <Badge
                           className={`text-[10px] uppercase font-bold px-2 py-0.5 ${
-                            job.status === 'IN_PROGRESS'
+                            job.status === 'DIAGNOSING' || job.status === 'IN_PROGRESS'
                               ? 'bg-blue-600 text-white'
                               : job.status === 'TRAVELING'
                               ? 'bg-amber-500 text-white'
-                              : job.status === 'ARRIVED'
+                              : job.status === 'ON_SITE' || job.status === 'ARRIVED'
                               ? 'bg-purple-600 text-white'
                               : 'bg-slate-700 text-white'
                           }`}
                         >
-                          {job.status.replace('_', ' ')}
+                          {(job.status || 'ASSIGNED').replace('_', ' ')}
                         </Badge>
                       </div>
 
@@ -464,10 +483,10 @@ export const MobileTechnicianPage: React.FC = () => {
                       {/* Equipment & Issue */}
                       <div className="bg-slate-50 border border-slate-200/80 rounded-lg p-2 text-xs text-slate-700">
                         <p className="font-semibold text-slate-800">
-                          {job.ticket?.product?.name || 'Industrial HVAC System 3.5T'}
+                          {productName}
                         </p>
                         <p className="text-[11px] text-slate-500 mt-0.5">
-                          {job.ticket?.description || 'Compressor trip error code E4 on boot'}
+                          {issueDetails}
                         </p>
                       </div>
 
@@ -502,7 +521,7 @@ export const MobileTechnicianPage: React.FC = () => {
 
                       {/* Stepped Frontline Execution Buttons */}
                       <div className="pt-2 border-t border-slate-100 space-y-2">
-                        {job.status === 'SCHEDULED' || job.status === 'ASSIGNED' ? (
+                        {job.status === 'SCHEDULED' || job.status === 'ASSIGNED' || job.status === 'DRAFT' || job.status === 'ACCEPTED' ? (
                           <Button
                             className="w-full bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs h-10 flex items-center justify-center gap-2"
                             onClick={() => handleUpdateStatus(job, 'TRAVELING')}
@@ -513,20 +532,20 @@ export const MobileTechnicianPage: React.FC = () => {
                         ) : job.status === 'TRAVELING' ? (
                           <Button
                             className="w-full bg-purple-700 hover:bg-purple-800 text-white font-semibold text-xs h-10 flex items-center justify-center gap-2"
-                            onClick={() => handleUpdateStatus(job, 'ARRIVED')}
+                            onClick={() => handleUpdateStatus(job, 'ON_SITE')}
                           >
                             <MapPin className="w-4 h-4" />
-                            I Have Arrived at Location
+                            I Have Arrived (On Site)
                           </Button>
-                        ) : job.status === 'ARRIVED' ? (
+                        ) : job.status === 'ON_SITE' || job.status === 'ARRIVED' ? (
                           <Button
                             className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs h-10 flex items-center justify-center gap-2"
-                            onClick={() => handleUpdateStatus(job, 'IN_PROGRESS')}
+                            onClick={() => handleUpdateStatus(job, 'DIAGNOSING')}
                           >
                             <Sparkles className="w-4 h-4" />
                             Begin Diagnostics & Repair
                           </Button>
-                        ) : job.status === 'IN_PROGRESS' ? (
+                        ) : (
                           <div className="grid grid-cols-2 gap-2">
                             <Button
                               variant="outline"
@@ -550,7 +569,7 @@ export const MobileTechnicianPage: React.FC = () => {
                               Sign Off & Close
                             </Button>
                           </div>
-                        ) : null}
+                        )}
                       </div>
                     </div>
                   </Card>
@@ -567,26 +586,32 @@ export const MobileTechnicianPage: React.FC = () => {
                 <p className="text-xs">No completed jobs recorded yet</p>
               </div>
             ) : (
-              completedJobs.map((job) => (
-                <Card key={job.id} className="border-slate-200 bg-white">
-                  <div className="p-3.5 flex items-center justify-between">
-                    <div>
-                      <span className="text-xs font-mono font-bold text-slate-900">
-                        {job.ticket?.ticketNumber || `WO-${job.id.slice(0, 6)}`}
-                      </span>
-                      <p className="text-xs text-slate-700 font-semibold mt-0.5">
-                        {job.ticket?.customer?.name || 'Enterprise Customer'}
-                      </p>
-                      <p className="text-[11px] text-slate-500">
-                        Resolved: {job.ticket?.product?.name || 'AC Unit'}
-                      </p>
+              completedJobs.map((job) => {
+                const customer = job.customer || job.ticket?.customer;
+                const woNumber = job.workOrderNumber || job.ticket?.ticketNumber || `WO-${job.id?.slice(0, 6) || 'JOB'}`;
+                const productName = job.product?.name || job.ticket?.product?.name || 'Equipment Unit';
+
+                return (
+                  <Card key={job.id} className="border-slate-200 bg-white">
+                    <div className="p-3.5 flex items-center justify-between">
+                      <div>
+                        <span className="text-xs font-mono font-bold text-slate-900">
+                          {woNumber}
+                        </span>
+                        <p className="text-xs text-slate-700 font-semibold mt-0.5">
+                          {customer?.name || 'Enterprise Customer'}
+                        </p>
+                        <p className="text-[11px] text-slate-500">
+                          Resolved: {productName}
+                        </p>
+                      </div>
+                      <Badge className="bg-emerald-100 text-emerald-800 text-[10px] font-semibold border-emerald-200">
+                        Completed
+                      </Badge>
                     </div>
-                    <Badge className="bg-emerald-100 text-emerald-800 text-[10px] font-semibold border-emerald-200">
-                      Completed
-                    </Badge>
-                  </div>
-                </Card>
-              ))
+                  </Card>
+                );
+              })
             )}
           </TabsContent>
 

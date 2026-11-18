@@ -71,12 +71,31 @@ export default {
           'Roboto',
           'sans-serif',
         ],
-        poppins: ['Poppins', 'sans-serif'],
+        display: [
+          'Inter',
+          '-apple-system',
+          'BlinkMacSystemFont',
+          'sans-serif',
+        ],
+        serif: [
+          'Newsreader',
+          'Tiempos Text',
+          'Source Serif 4',
+          'Georgia',
+          'serif',
+        ],
         mono: [
-          'Space Mono',
+          'JetBrains Mono',
           'ui-monospace',
+          'Menlo',
           'Consolas',
           'monospace',
+        ],
+        poppins: [
+          'Inter',
+          '-apple-system',
+          'BlinkMacSystemFont',
+          'sans-serif',
         ],
       },
       boxShadow: {

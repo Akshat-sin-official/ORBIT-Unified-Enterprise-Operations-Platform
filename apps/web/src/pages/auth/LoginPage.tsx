@@ -1,11 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import {
-  CheckCircle2,
   Loader2,
   ArrowRight,
   ShieldCheck,
@@ -14,7 +10,6 @@ import {
   Wrench,
   Eye,
   EyeOff,
-  Sparkles,
 } from 'lucide-react';
 
 interface LoginPageProps {
@@ -29,41 +24,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [activeRole, setActiveRole] = useState<string | null>(null);
 
-  const demoRoles = [
-    {
-      role: 'admin' as const,
-      label: 'Platform Admin',
-      sub: 'Super Admin • All 10 Modules',
-      icon: ShieldCheck,
-      badge: 'Full RBAC',
-    },
-    {
-      role: 'support' as const,
-      label: 'Service Desk',
-      sub: 'Pooja • Incident Triage & SLA',
-      icon: Headphones,
-      badge: 'Support',
-    },
-    {
-      role: 'dispatcher' as const,
-      label: 'Smart Dispatcher',
-      sub: 'Amit • Scheduling & Fleet',
-      icon: CalendarCheck,
-      badge: 'Dispatch',
-    },
-    {
-      role: 'tech' as const,
-      label: 'Field Technician',
-      sub: 'Ravi • On-Site & Customer OTP',
-      icon: Wrench,
-      badge: 'Field Ops',
-    },
-  ];
-
   const handleManualLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
-      toast.error('Please enter both email and password');
+      toast.error('Please enter both work email and password');
       return;
     }
     setIsLoading(true);
@@ -73,7 +37,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
       onSuccess();
     } catch (err: any) {
       if (!err?.response) {
-        toast.error('Cannot connect to ORBIT API server. Please ensure the backend is running.');
+        toast.error('Cannot connect to ORBIT API server. Ensure backend is running.');
       } else if (err.response?.status === 401) {
         toast.error('Invalid credentials. Check your email and password.');
       } else {
@@ -90,7 +54,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
       await loginDemo(role);
       toast.success(`Signed in as ${role.toUpperCase()}`);
       onSuccess();
-    } catch (err: any) {
+    } catch {
       toast.error('Demo sign-in failed. Please verify API & Database connection.');
     } finally {
       setActiveRole(null);
@@ -98,241 +62,222 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
   };
 
   return (
-    <div className="min-h-screen w-full grid lg:grid-cols-2 bg-[#FAF9F6] font-sans overflow-x-hidden selection:bg-primary/20">
-      {/* Left Panel - Hero / Brand Showcase */}
-      <div className="hidden lg:flex flex-col bg-gradient-to-br from-[#F5F3EF] via-[#FAF9F6] to-[#EAE6DF] text-ink p-10 xl:p-14 2xl:p-16 justify-between relative sticky top-0 h-screen overflow-hidden border-r border-border/60">
-        {/* Soft atmospheric gradient glow */}
-        <div className="absolute top-0 right-0 -translate-y-1/3 translate-x-1/3 w-[550px] h-[550px] bg-gradient-to-br from-primary/15 to-indigo-500/10 rounded-full blur-[100px] pointer-events-none" />
-        <div className="absolute bottom-0 left-0 translate-y-1/3 -translate-x-1/3 w-[500px] h-[500px] bg-gradient-to-tr from-emerald-500/10 to-teal-500/5 rounded-full blur-[100px] pointer-events-none" />
+    <div className="min-h-screen w-full bg-[#08090D] text-zinc-100 flex flex-col justify-between p-4 sm:p-6 lg:p-8 font-sans selection:bg-blue-600/30 relative overflow-hidden">
+      {/* Subtle atmospheric ambient glow */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-gradient-to-b from-blue-600/10 via-indigo-600/5 to-transparent blur-[120px] pointer-events-none" />
 
-        {/* Brand Header with Custom Logo */}
-        <div className="relative z-10 flex items-center justify-between">
-          <div className="inline-flex items-center gap-3">
-            <div className="h-12 w-auto bg-white/95 px-3 py-1.5 rounded-2xl border border-white shadow-xs backdrop-blur-md flex items-center justify-center">
-              <img
-                src="/orbit-logo.png"
-                alt="ORBIT"
-                className="h-8 w-auto object-contain mix-blend-multiply"
-              />
-            </div>
-            <div className="flex flex-col">
-              <span className="text-[10px] text-ink-soft uppercase tracking-[0.2em] font-mono font-bold">
-                Unified Enterprise Operations
-              </span>
-              <span className="text-[11px] font-mono text-primary font-semibold">
-                Platform v1.0 Production
-              </span>
-            </div>
-          </div>
+      {/* Top Header Logo */}
+      <header className="relative z-10 w-full max-w-5xl mx-auto flex items-center justify-center pt-2 sm:pt-4">
+        <div className="flex items-center gap-2.5">
+          <img
+            src="/orbit-logo.png"
+            alt="ORBIT"
+            className="h-6 w-auto object-contain brightness-0 invert opacity-95"
+          />
+          <span className="font-semibold text-sm tracking-tight text-white font-sans">
+            ORBIT
+          </span>
         </div>
+      </header>
 
-        {/* Hero Content with Elevated Typography */}
-        <div className="relative z-10 max-w-lg space-y-7 font-poppins my-auto">
-          <div className="space-y-3">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-bold uppercase tracking-wider">
-              <Sparkles className="w-3.5 h-3.5 text-primary" />
-              <span>Domain-Driven Operations</span>
-            </div>
-            <h1 className="text-4xl xl:text-5xl 2xl:text-[54px] font-black tracking-[-0.035em] leading-[1.12] text-ink">
-              Autonomous <br />
-              <span className="bg-gradient-to-r from-primary via-indigo-600 to-purple-600 bg-clip-text text-transparent">
-                Field & Enterprise
-              </span>{' '}
-              <br />
-              Resource Ops.
-            </h1>
-            <p className="text-sm xl:text-[15px] text-muted-foreground leading-relaxed font-sans max-w-md font-normal">
-              Unified orchestration for Customer CRM, Service Desk SLAs, Field Technician
-              Dispatches, Multi-Hub Warehouses, Fleet Logistics & Automated Invoicing.
-            </p>
-          </div>
-
-          {/* Premium Glassmorphic Feature Pill Cards */}
-          <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-5 xl:p-6 border border-white shadow-[0_12px_40px_0_rgba(26,11,46,0.04)] space-y-3 font-sans">
-            <div className="flex items-center gap-3 text-ink/90">
-              <div className="p-1 rounded-md bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
-                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-              </div>
-              <span className="text-xs font-semibold font-poppins tracking-tight">
-                Tenant-Isolated Multi-Tenancy & Granular RBAC Permissions
-              </span>
-            </div>
-            <div className="flex items-center gap-3 text-ink/90">
-              <div className="p-1 rounded-md bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
-                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-              </div>
-              <span className="text-xs font-semibold font-poppins tracking-tight">
-                Hardware Serial Number & Manufacturer Warranty Engine
-              </span>
-            </div>
-            <div className="flex items-center gap-3 text-ink/90">
-              <div className="p-1 rounded-md bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
-                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-              </div>
-              <span className="text-xs font-semibold font-poppins tracking-tight">
-                Algorithmic Technician Match & Customer OTP Fraud Prevention
-              </span>
-            </div>
-            <div className="flex items-center gap-3 text-ink/90">
-              <div className="p-1 rounded-md bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
-                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-              </div>
-              <span className="text-xs font-semibold font-poppins tracking-tight">
-                Google Gemini 2.5 Flash Operations Copilot with Live RAG
-              </span>
-            </div>
-          </div>
-
-          <div className="pt-2 border-t border-border/70 text-ink-soft">
-            <p className="text-xs italic text-muted-foreground font-sans">
-              "Built for high-volume enterprise operations: fast, keyboard-first, and resilient."
-            </p>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="relative z-10 flex justify-between items-end text-xs text-muted-foreground font-medium font-sans">
-          <p>© 2026 ORBIT Technologies Inc.</p>
-          <span className="font-mono text-[10.5px]">ORBIT Enterprise Suite</span>
-        </div>
-      </div>
-
-      {/* Right Panel - Login & 1-Click Persona Profiles */}
-      <div className="flex flex-col h-screen overflow-hidden bg-[#FAF9F6] relative">
-        {/* Scrollable Form Body */}
-        <div className="flex-1 overflow-y-auto px-6 py-12 flex flex-col items-center justify-center">
-          <div className="w-full max-w-[420px] my-auto space-y-6 animate-fade-in">
-            {/* Header Lockup with Logo */}
-            <div className="flex flex-col space-y-2 text-center lg:text-left">
-              <div className="lg:hidden flex items-center justify-center gap-2 mb-2">
-                <img
-                  src="/orbit-logo.png"
-                  alt="ORBIT"
-                  className="h-9 w-auto object-contain mix-blend-multiply"
-                />
-              </div>
-              <h2 className="text-3xl font-black font-poppins tracking-[-0.03em] text-ink">
-                Sign In
-              </h2>
-              <p className="text-xs text-muted-foreground font-sans leading-relaxed">
-                Choose a pre-configured role profile below to test distinct RBAC dashboards, or enter your credentials.
+      {/* Center Main Card - Exact Attio Style Framing */}
+      <main className="relative z-10 w-full max-w-4xl xl:max-w-5xl mx-auto my-auto">
+        <div className="bg-[#0D0F17] border border-white/10 rounded-2xl sm:rounded-3xl shadow-[0_24px_80px_rgba(0,0,0,0.8)] overflow-hidden grid md:grid-cols-2">
+          
+          {/* Left Column: Form & Direct Actions */}
+          <div className="p-7 sm:p-9 lg:p-12 flex flex-col justify-between space-y-6">
+            <div className="space-y-2">
+              <h1 className="text-xl sm:text-2xl font-semibold text-white tracking-tight">
+                Let's get started.
+              </h1>
+              <p className="text-xs sm:text-[13px] text-zinc-400 leading-relaxed font-normal">
+                ORBIT is the operations platform that meets you where you work,
+                compounds every field and logistics signal into context, then acts across
+                your pipeline to let you move at unmatched speed and scale.
+              </p>
+              <p className="text-xs text-zinc-500 pt-1 font-normal">
+                From here, you'll always know your next move.
               </p>
             </div>
 
-            {/* 1-Click Role Profiles Grid (2x2) */}
-            <div className="space-y-2">
-              <div className="text-[10px] font-bold font-poppins uppercase tracking-wider text-muted-foreground flex items-center justify-between">
-                <span>Select Operational Persona:</span>
-                <span className="font-mono font-medium text-primary">Instant RBAC Session</span>
+            {/* Auth Actions */}
+            <div className="space-y-4 pt-1">
+              {/* Google SSO Button */}
+              <button
+                type="button"
+                onClick={() => handleDemoLogin('admin')}
+                className="w-full h-10 sm:h-11 bg-[#2563EB] hover:bg-blue-600 text-white font-medium text-xs sm:text-sm rounded-xl flex items-center justify-center gap-2.5 transition-all shadow-sm cursor-pointer"
+              >
+                <svg className="w-4 h-4 fill-current shrink-0" viewBox="0 0 24 24">
+                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05" />
+                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335" />
+                </svg>
+                <span>Sign in with Google</span>
+              </button>
+
+              {/* Minimal Divider */}
+              <div className="relative flex items-center justify-center my-3">
+                <div className="w-full border-t border-zinc-800" />
+                <span className="bg-[#0D0F17] px-3 text-[10px] text-zinc-500 font-mono tracking-widest uppercase">
+                  OR
+                </span>
               </div>
-              <div className="grid grid-cols-2 gap-2.5">
-                {demoRoles.map((dr) => {
-                  const Icon = dr.icon;
-                  const isSelected = activeRole === dr.role;
-                  return (
+
+              {/* Manual Email / Password Form */}
+              <form onSubmit={handleManualLogin} className="space-y-3">
+                <div>
+                  <label className="text-[11px] text-zinc-400 font-medium mb-1.5 block">
+                    Sign in with email
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="email"
+                      placeholder="Enter your work email address..."
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full h-10 bg-[#121520] border border-white/10 rounded-xl px-3.5 pr-10 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-blue-500/80 transition-colors"
+                      required
+                    />
                     <button
-                      key={dr.role}
-                      type="button"
-                      onClick={() => handleDemoLogin(dr.role)}
-                      disabled={activeRole !== null || isLoading}
-                      className={`p-3 rounded-xl border text-left transition-all duration-150 cursor-pointer flex flex-col justify-between ${
-                        isSelected
-                          ? 'border-primary bg-primary/5 shadow-xs'
-                          : 'border-border/80 bg-white hover:border-primary/50 hover:bg-zinc-50/80 shadow-2xs'
-                      }`}
+                      type="submit"
+                      disabled={isLoading}
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-lg bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center transition-all disabled:opacity-50 cursor-pointer"
+                      title="Continue"
                     >
-                      <div className="flex items-center justify-between w-full mb-1.5">
-                        <div className="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
-                          <Icon className="w-3.5 h-3.5" />
-                        </div>
-                        <span className="text-[9.5px] font-mono font-bold text-primary px-1.5 py-0.5 rounded bg-primary/5 border border-primary/20">
-                          {dr.badge}
-                        </span>
-                      </div>
-                      <div>
-                        <div className="font-poppins font-bold text-xs text-ink tracking-tight">
-                          {dr.label}
-                        </div>
-                        <div className="text-[10.5px] text-muted-foreground truncate font-sans mt-0.5">
-                          {dr.sub}
-                        </div>
-                      </div>
+                      {isLoading ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      )}
                     </button>
-                  );
-                })}
-              </div>
-            </div>
+                  </div>
+                </div>
 
-            <div className="flex items-center gap-3">
-              <div className="h-px bg-border/70 flex-1" />
-              <span className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-widest font-poppins">
-                Or Sign In With Password
-              </span>
-              <div className="h-px bg-border/70 flex-1" />
-            </div>
-
-            {/* Manual Form */}
-            <form onSubmit={handleManualLogin} className="space-y-3.5">
-              <div className="space-y-1">
-                <Label htmlFor="email" className="font-poppins font-bold text-[11px] uppercase tracking-wider text-muted-foreground">
-                  Email Address
-                </Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@orbit.local"
-                  className="h-10 text-xs bg-white border-border/80 font-sans"
-                  required
-                />
-              </div>
-
-              <div className="space-y-1">
-                <Label htmlFor="password" className="font-poppins font-bold text-[11px] uppercase tracking-wider text-muted-foreground">
-                  Password
-                </Label>
+                {/* Password field */}
                 <div className="relative">
-                  <Input
-                    id="password"
+                  <input
                     type={showPassword ? 'text' : 'password'}
+                    placeholder="Enter password..."
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="h-10 text-xs bg-white border-border/80 font-mono pr-10"
-                    required
+                    className="w-full h-10 bg-[#121520] border border-white/10 rounded-xl px-3.5 pr-10 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-blue-500/80 transition-colors"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1 cursor-pointer"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
                   >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    {showPassword ? (
+                      <EyeOff className="w-3.5 h-3.5" />
+                    ) : (
+                      <Eye className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+                </div>
+              </form>
+
+              {/* 1-Click Role Sandbox Pills */}
+              <div className="pt-2">
+                <span className="text-[10px] text-zinc-500 font-medium uppercase tracking-wider block mb-2">
+                  Fast Demo Access
+                </span>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                  <button
+                    type="button"
+                    disabled={Boolean(activeRole)}
+                    onClick={() => handleDemoLogin('admin')}
+                    className="py-1.5 px-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/20 text-[11px] text-zinc-300 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                  >
+                    <ShieldCheck className="w-3 h-3 text-blue-400 shrink-0" />
+                    <span>Admin</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={Boolean(activeRole)}
+                    onClick={() => handleDemoLogin('dispatcher')}
+                    className="py-1.5 px-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/20 text-[11px] text-zinc-300 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                  >
+                    <CalendarCheck className="w-3 h-3 text-emerald-400 shrink-0" />
+                    <span>Dispatch</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={Boolean(activeRole)}
+                    onClick={() => handleDemoLogin('support')}
+                    className="py-1.5 px-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/20 text-[11px] text-zinc-300 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                  >
+                    <Headphones className="w-3 h-3 text-purple-400 shrink-0" />
+                    <span>Support</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={Boolean(activeRole)}
+                    onClick={() => handleDemoLogin('tech')}
+                    className="py-1.5 px-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/20 text-[11px] text-zinc-300 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                  >
+                    <Wrench className="w-3 h-3 text-amber-400 shrink-0" />
+                    <span>Field Tech</span>
                   </button>
                 </div>
               </div>
+            </div>
 
-              <Button
-                type="submit"
-                className="w-full h-10 text-xs font-poppins font-bold tracking-wide uppercase bg-gradient-to-r from-indigo-600 via-primary to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white shadow-xs rounded-xl"
-                disabled={isLoading || activeRole !== null}
-              >
-                {isLoading ? (
-                  <div className="flex items-center justify-center gap-2">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin text-white" />
-                    <span>Signing in...</span>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-center gap-2 group">
-                    <span>Sign In to ORBIT Console</span>
-                    <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1 duration-150" />
-                  </div>
-                )}
-              </Button>
-            </form>
+            {/* Bottom Disclaimer */}
+            <p className="text-[10px] text-zinc-600 leading-relaxed pt-2">
+              By inserting your email you confirm you agree to ORBIT contacting you about our
+              product and services. You can opt out at any time by clicking unsubscribe in our
+              emails. Find out more about how we use data in our privacy policy.
+            </p>
           </div>
+
+          {/* Right Column: Editorial Testimonial Panel */}
+          <div
+            className="hidden md:flex flex-col justify-between p-8 sm:p-10 lg:p-12 bg-[#080A10] border-l border-white/5 relative overflow-hidden"
+            style={{
+              backgroundImage:
+                'repeating-linear-gradient(to right, rgba(255, 255, 255, 0.035) 0px, rgba(255, 255, 255, 0.035) 1px, transparent 1px, transparent 10px)',
+            }}
+          >
+            {/* Subtle inner dark vignette & moody ambient glow */}
+            <div className="absolute inset-0 bg-gradient-to-tr from-blue-950/20 via-transparent to-transparent pointer-events-none" />
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_20%,rgba(8,10,16,0.75)_100%)] pointer-events-none" />
+
+            <div className="relative z-10" />
+
+            {/* Centered Editorial Quote in Tiempos/Newsreader Serif */}
+            <div className="relative z-10 my-auto text-center max-w-sm mx-auto px-4">
+              <blockquote className="font-serif text-lg sm:text-xl lg:text-[22px] text-zinc-100 font-normal leading-relaxed tracking-normal">
+                “ORBIT is the furthest we’ve ever gotten with any kind of firm-wide
+                software – it’s a huge improvement.”
+              </blockquote>
+              <div className="mt-6 space-y-1">
+                <p className="text-xs sm:text-sm font-medium text-zinc-200 tracking-tight font-sans">
+                  Matt Cynamon
+                </p>
+                <p className="text-[11px] text-zinc-500 font-sans">
+                  Head of Global Operations · USV
+                </p>
+              </div>
+            </div>
+
+            {/* Subtle bottom indicator */}
+            <div className="relative z-10 flex justify-end items-center">
+              <span className="text-[10px] text-zinc-600 font-mono tracking-wider uppercase">
+                System Status: Nominal
+              </span>
+            </div>
+          </div>
+
         </div>
-      </div>
+      </main>
+
+      {/* Footer Minimal Copyright */}
+      <footer className="relative z-10 w-full max-w-5xl mx-auto flex items-center justify-between text-[11px] text-zinc-600 font-medium pt-2">
+        <span>© 2026 ORBIT Technologies Inc.</span>
+        <span className="font-mono text-[10px] text-zinc-700">SOC 2 TYPE II COMPLIANT</span>
+      </footer>
     </div>
   );
 };

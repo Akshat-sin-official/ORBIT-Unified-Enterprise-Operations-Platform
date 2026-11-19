@@ -25,6 +25,7 @@ import { InventoryPage } from '@/pages/inventory/InventoryPage';
 import { LogisticsPage } from '@/pages/logistics/LogisticsPage';
 import { FinancePage } from '@/pages/finance/FinancePage';
 import { AnalyticsPage } from '@/pages/analytics/AnalyticsPage';
+import { LandingPage } from '@/pages/marketing/LandingPage';
 import { Loader2 } from 'lucide-react';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -60,6 +61,10 @@ export const AppRoutes: React.FC = () => {
         }
       />
 
+      {/* Client-Facing Marketing Landing Page (Public Lead Generation) */}
+      <Route path="/" element={<LandingPage />} />
+      <Route path="/welcome" element={<LandingPage />} />
+
       {/* Public Customer Self-Service Tracking (No Login Required) */}
       <Route path="/track/:token" element={<PublicTrackingPage />} />
 
@@ -73,15 +78,14 @@ export const AppRoutes: React.FC = () => {
         }
       />
 
+      {/* Authenticated Enterprise App Workspace */}
       <Route
-        path="/"
         element={
           <ProtectedRoute>
             <AppLayout />
           </ProtectedRoute>
         }
       >
-        <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="operations/customers" element={<CustomersPage />} />
         <Route path="operations/products" element={<ProductsPage />} />

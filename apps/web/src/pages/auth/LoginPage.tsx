@@ -252,27 +252,16 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
                   Matt Cynamon
                 </p>
                 <p className="text-[11px] text-zinc-500 font-sans">
-                  Head of Global Operations · USV
+                  Head of Global Operations &middot; USV
                 </p>
               </div>
             </div>
 
-            {/* Subtle bottom indicator */}
-            <div className="relative z-10 flex justify-end items-center">
-              <span className="text-[10px] text-zinc-600 font-mono tracking-wider uppercase">
-                System Status: Nominal
-              </span>
-            </div>
+            <div className="relative z-10" />
           </div>
 
         </div>
       </main>
-
-      {/* Footer Minimal Copyright */}
-      <footer className="relative z-10 w-full max-w-5xl mx-auto flex items-center justify-between text-[11px] text-zinc-600 font-medium pt-2">
-        <span>© 2026 ORBIT Technologies Inc.</span>
-        <span className="font-mono text-[10px] text-zinc-700">SOC 2 TYPE II COMPLIANT</span>
-      </footer>
     </div>
   );
 };

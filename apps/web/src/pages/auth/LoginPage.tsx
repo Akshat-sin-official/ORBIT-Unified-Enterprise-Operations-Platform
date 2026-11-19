@@ -66,18 +66,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
       {/* Subtle atmospheric ambient glow */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-gradient-to-b from-blue-600/10 via-indigo-600/5 to-transparent blur-[120px] pointer-events-none" />
 
-      {/* Top Header Logo */}
+      {/* Top Header Logo - Standalone Icon Only */}
       <header className="relative z-10 w-full max-w-5xl mx-auto flex items-center justify-center pt-2 sm:pt-4">
-        <div className="flex items-center gap-2.5">
-          <img
-            src="/orbit-logo.png"
-            alt="ORBIT"
-            className="h-6 w-auto object-contain brightness-0 invert opacity-95"
-          />
-          <span className="font-semibold text-sm tracking-tight text-white font-sans">
-            ORBIT
-          </span>
-        </div>
+        <img
+          src="/orbit-logo.png"
+          alt="ORBIT"
+          className="h-7 sm:h-8 w-auto object-contain brightness-0 invert opacity-95 hover:opacity-100 transition-opacity"
+        />
       </header>
 
       {/* Center Main Card - Exact Attio Style Framing */}
